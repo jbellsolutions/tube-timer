@@ -1,0 +1,15 @@
+{
+  "_help": "Songs for the 'Get up!' dance party (YouTube video IDs; 'start' is seconds into the video). These videos are always allowed.",
+  "songs": [
+    {
+      "id": "iOQ2RpKpLEU",
+      "start": 165,
+      "title": "Astronomia shuffle dance"
+    },
+    {
+      "id": "svROfqdeyFI",
+      "start": 0,
+      "title": "100 Phonk songs on piano"
+    }
+  ]
+}

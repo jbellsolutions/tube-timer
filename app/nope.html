@@ -1,0 +1,221 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Ah ah ah!</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#fff;font-family:"Menlo","Courier New",monospace;
+  user-select:none;-webkit-user-select:none;cursor:default}
+#matrix{position:fixed;inset:0;color:#33ff66;opacity:.22;font-size:22px;line-height:1.25;word-break:break-all;
+  animation:scroll 12s linear infinite;white-space:normal;padding:8px}
+@keyframes scroll{from{transform:translateY(0)}to{transform:translateY(-50%)}}
+#scan{position:fixed;inset:0;background:repeating-linear-gradient(0deg,#0000 0 3px,#0005 3px 4px);pointer-events:none;z-index:20}
+#alarm{position:fixed;inset:0;box-shadow:inset 0 0 120px 30px #ff0033;animation:alarm 1s steps(2) infinite;pointer-events:none;z-index:19}
+@keyframes alarm{50%{opacity:.2}}
+
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;gap:4vw;padding:3vh 3vw;z-index:5}
+#guyBox{display:flex;flex-direction:column;align-items:center;flex:none}
+#guy{position:relative;animation:sway 1s ease-in-out infinite alternate}
+@keyframes sway{from{transform:rotate(-3deg)}to{transform:rotate(3deg)}}
+#arm{position:absolute;transform-origin:50% 100%;animation:wag .28s ease-in-out infinite alternate}
+@keyframes wag{from{transform:rotate(-24deg)}to{transform:rotate(24deg)}}
+#costume{margin-top:10px;background:#33ff66;color:#000;font-weight:700;padding:4px 12px;font-size:16px}
+
+#right{max-width:min(900px,58vw);display:flex;flex-direction:column;gap:14px}
+h1{margin:0;font-size:clamp(56px,8vw,120px);color:#ff2a4d;text-shadow:5px 5px 0 #000,0 0 30px #ff2a4d;letter-spacing:4px;
+  animation:shake .28s ease-in-out infinite alternate}
+@keyframes shake{from{transform:rotate(-2deg)}to{transform:rotate(2deg) translateX(6px)}}
+#magic{font-size:clamp(20px,2.4vw,34px);font-weight:700;color:#33ff66}
+#why{font-size:clamp(15px,1.4vw,19px);background:#111c;border:3px solid #33ff66;padding:10px 14px;line-height:1.4}
+#why b{color:#ffd000}
+#pickTitle{font-size:clamp(18px,1.8vw,26px);font-weight:700;color:#ffd000}
+#cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.card{background:#fff;color:#111;border:4px solid #111;box-shadow:5px 5px 0 #33ff66;cursor:pointer;display:flex;flex-direction:column;
+  transition:transform .1s}
+.card:hover{transform:translate(-2px,-4px) rotate(-1deg);box-shadow:8px 9px 0 #ffd000}
+.card img{width:100%;aspect-ratio:16/9;object-fit:cover;background:#222;display:block}
+.card .t{font-size:13px;font-weight:700;padding:6px 8px 2px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card .c{font-size:11px;color:#555;padding:0 8px 8px}
+.card .tag{font-size:13px;font-weight:700;background:#111;color:#33ff66;padding:4px 8px}
+#more{align-self:flex-start;font:700 16px "Menlo",monospace;padding:10px 18px;background:#33ff66;color:#000;border:4px solid #111;
+  box-shadow:4px 4px 0 #000;cursor:pointer}
+#more:hover{background:#ffd000}
+#ask{display:flex;gap:14px;flex-wrap:wrap}
+#ask button{font:700 clamp(16px,1.6vw,22px) "Menlo",monospace;padding:16px 22px;border:5px solid #111;box-shadow:6px 6px 0 #000;cursor:pointer}
+#yes{background:#ffd000;color:#111}#no{background:#33ff66;color:#111}
+#ask button:hover{transform:translate(2px,2px);box-shadow:4px 4px 0 #000}
+.askmode h1{color:#ffd000;text-shadow:5px 5px 0 #000,0 0 30px #ffd000}
+.askmode #alarm{box-shadow:inset 0 0 120px 30px #ffb300}
+.hidden{display:none!important}
+#earn{align-self:flex-start;font:700 clamp(15px,1.5vw,20px) "Menlo",monospace;padding:14px 20px;background:#2b6cff;color:#fff;
+  border:5px solid #111;box-shadow:6px 6px 0 #000;cursor:pointer;animation:glow 1s ease-in-out infinite alternate}
+@keyframes glow{to{box-shadow:6px 6px 0 #000,0 0 24px #2b6cff}}
+.secondary #right{display:none}
+</style></head>
+<body>
+<div id="matrix"></div><div id="scan"></div><div id="alarm"></div>
+<div id="wrap">
+  <div id="guyBox"><div id="guy"></div><div id="costume"></div></div>
+  <div id="right">
+    <h1>AH AH AH!</h1>
+    <div id="magic">You didn't say the magic word! 🙅</div>
+    <div id="why"></div>
+    <div id="ask" class="hidden">
+      <button id="yes">✅ Yes, use my fun time</button>
+      <button id="no">📚 No, show me learning videos</button>
+    </div>
+    <button id="earn" class="hidden">🧠 Earn 20 more minutes: watch a short video + answer 5 questions</button>
+    <div id="pickTitle">Pick one of these instead 👇</div>
+    <div id="cards"></div>
+    <button id="more">🔄 Show me 5 different ones</button>
+  </div>
+</div>
+<script>
+const P = Object.assign({mode: "nope", channel: "Some Channel", category: "Entertainment", title: "", skin: 0, slots: [],
+  funLeft: 1200, funMin: 20, funWindow: "4:00 PM–8:30 PM", primary: true}, window.PARAMS || {});
+const send = (kind, value) => { try { window.webkit.messageHandlers.msg.postMessage({kind, value}); } catch(e) { console.log(kind, value); } };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+if(!P.primary) document.body.classList.add("secondary");
+
+document.getElementById("matrix").textContent = "AH AH AH! YOU DIDN'T SAY THE MAGIC WORD! ".repeat(400);
+
+// ---------- costumes ----------
+function hash(x,y){ let h = (x*374761393 + y*668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return (h ^ (h >>> 16)) >>> 0; }
+const noise = (cols, b=2) => (x,y) => cols[hash(Math.floor(x/b), Math.floor(y/b)) % cols.length];
+const SKINS = [
+  {name: "Zebra Onesie", feet: "#111",
+   pat: (x,y) => { const v = x + Math.round(Math.sin(y*0.55)*1.5); return ((v%4)+4)%4 < 2 ? "#111" : "#fafafa"; },
+   extra: set => { for (const ox of [4,17]) { for (let x=ox;x<ox+3;x++) for (let y=0;y<3;y++) set(x,y,"#fafafa"); set(ox+1,0,"#111"); set(ox+1,1,"#f8bbd0"); }
+                   for (let x=10;x<=13;x++) for (let y=0;y<=2;y++) set(x,y,"#111"); }},
+  {name: "Blocky Boom Hoodie", pat: noise(["#4caf50","#2e7d32","#81c784","#1b5e20","#66bb6a"])},
+  {name: "Diamond Armor", feet: "#00838f", pat: noise(["#4dd0e1","#26c6da","#b2ebf2","#0097a7"]),
+   extra: set => { for (let x=4;x<=19;x++) set(x,3,"#e0f7fa"); }},
+  {name: "Golden Knight", feet: "#8d6e00", pat: noise(["#ffd54f","#ffca28","#ffecb3","#ffb300"]),
+   extra: set => { for (const x of [6,11,16]) { set(x,1,"#ffca28"); set(x,2,"#ffca28"); set(x+1,2,"#ffca28"); set(x,0,"#e53935"); } }},
+  {name: "Camo Commando", feet: "#3e2f1c", pat: noise(["#4b5320","#6b8e23","#3e2f1c","#8b7d5a"]),
+   extra: set => { for (let x=4;x<=19;x++) set(x,3,"#222"); for (let y=10;y<=15;y++) { set(2,y,"#222"); set(3,y,"#222"); }
+                   for (let x=4;x<=8;x++) set(x,17,"#222"); set(8,16,"#555"); }},
+  {name: "Space Marine Armor", feet: "#424242",
+   pat: (x,y) => y % 7 === 0 ? "#ff6d00" : noise(["#9e9e9e","#757575","#bdbdbd"])(x,y),
+   extra: set => { set(17,0,"#ff1744"); set(17,1,"#9e9e9e"); set(17,2,"#9e9e9e"); }},
+  {name: "Banana Suit", feet: "#6d4c41",
+   pat: (x,y) => hash(x,y) % 23 === 0 ? "#8d6e63" : (x+y) % 9 === 0 ? "#fdd835" : "#ffe135",
+   extra: set => { for (let y=0;y<=2;y++) { set(11,y,"#6d4c41"); set(12,y,"#6d4c41"); } }},
+  {name: "Dino Suit", feet: "#2e7d32",
+   pat: (x,y) => (y >= 24 && y <= 32 && x >= 8 && x <= 15) ? "#c5e1a5" : noise(["#43a047","#388e3c","#4caf50"], 3)(x,y),
+   extra: set => { for (const c of [5,9,13,17]) { set(c,2,"#ff9800"); set(c+1,2,"#ff9800"); set(c+2,2,"#ff9800"); set(c+1,1,"#ff9800"); set(c+1,0,"#ffb74d"); } }},
+  {name: "Shadow Ninja", feet: "#000", pat: noise(["#212121","#2b2b2b","#1a1a1a"]),
+   extra: set => { for (let x=2;x<=21;x++) { set(x,6,"#e53935"); set(x,7,"#c62828"); } for (let y=7;y<=10;y++) { set(0,y,"#e53935"); set(1,y,"#c62828"); } }},
+  {name: "Astronaut Suit", feet: "#9e9e9e",
+   pat: (x,y) => (x===6 || x===17) ? "#1e88e5" : noise(["#fafafa","#eeeeee","#e0e0e0"])(x,y),
+   extra: set => { set(8,24,"#e53935"); set(9,24,"#fafafa"); set(8,25,"#1e88e5"); set(9,25,"#e53935"); }},
+  {name: "Robot Costume", feet: "#455a64",
+   pat: (x,y) => (x%4===0 && y%4===0) ? "#263238" : noise(["#b0bec5","#90a4ae","#cfd8dc"])(x,y),
+   extra: set => { set(11,0,"#ff1744"); set(12,0,"#ff1744"); set(11,1,"#90a4ae"); set(12,1,"#90a4ae"); set(11,2,"#90a4ae"); set(12,2,"#90a4ae"); }},
+  {name: "Pizza Party Suit", feet: "#b5651d",
+   pat: (x,y) => hash(Math.floor(x/2),Math.floor(y/2)) % 6 === 0 ? "#c0392b" : noise(["#f6c445","#f4b942","#f9d56e"])(x,y),
+   extra: set => { for (let x=4;x<=19;x++) { set(x,3,"#b5651d"); set(x,4,"#cd853f"); } }},
+];
+
+// ---------- the guy (big head, glasses, smirk, wagging finger) ----------
+const W = 26, H = 40, S = "#f1c27d", SD = "#d9a066";
+const inHead = (x,y) => { if (y<3||y>20) return false; const i = (y===3||y===20)?2:(y===4||y===19)?1:0; return x>=2+i && x<=21-i; };
+const inFace = (x,y) => { if (y<7||y>19) return false; const i = y===19?2:y===18?1:0; return x>=5+i && x<=18-i; };
+const inBody = (x,y) => y>=21 && y<=32 && x >= ((y>=25&&y<=31)?4:5) && x <= ((y>=25&&y<=31)?19:18);
+const inUpperArm = (x,y) => y>=21 && y<=23 && x>=19 && x<=24;
+const inLegs = (x,y) => y>=33 && y<=37 && ((x>=6&&x<=10)||(x>=13&&x<=17));
+const inFeet = (x,y) => y>=38 && ((x>=5&&x<=10)||(x>=13&&x<=18));
+const inLeftArm = (x,y) => y>=22 && y<=31 && x>=2 && x<=3;
+const inLeftHand = (x,y) => y>=32 && y<=33 && x>=2 && x<=3;
+
+function drawGuy(skin){
+  const g = Array.from({length:H}, () => Array(W).fill(null));
+  const set = (x,y,c) => { if (y>=0 && y<H && x>=0 && x<W) g[y][x] = c; };
+  for (let y=0;y<H;y++) for (let x=0;x<W;x++) {
+    if (inHead(x,y)) g[y][x] = inFace(x,y) ? S : skin.pat(x,y);
+    else if (inBody(x,y) || inLegs(x,y) || inLeftArm(x,y) || inUpperArm(x,y)) g[y][x] = skin.pat(x,y);
+    else if (inFeet(x,y)) g[y][x] = skin.feet || "#333";
+    else if (inLeftHand(x,y)) g[y][x] = S;
+  }
+  [7,8,9].forEach(x => set(x,9,"#5a3a1a")); [14,15,16].forEach(x => set(x,8,"#5a3a1a"));   // smug eyebrows
+  for (const ox of [6,13]) {                                                                // glasses
+    for (let x=ox;x<=ox+4;x++) { set(x,10,"#222"); set(x,13,"#222"); }
+    for (const y of [11,12]) { set(ox,y,"#222"); set(ox+4,y,"#222"); for (let x=ox+1;x<=ox+3;x++) set(x,y,"#cdefff"); }
+    set(ox+2,12,"#111");
+  }
+  set(11,11,"#222"); set(12,11,"#222");
+  [[11,14],[12,14],[11,15],[12,15]].forEach(([x,y]) => set(x,y,SD));                        // nose
+  [[6,15],[7,15],[16,15],[17,15]].forEach(([x,y]) => set(x,y,"#f4978e"));                   // cheeks
+  for (let x=9;x<=14;x++) set(x,17,"#8b2e2e"); set(15,16,"#8b2e2e");                        // smirk
+  for (let x=8;x<=15;x++) set(x,19,SD);                                                     // double chin
+  skin.extra && skin.extra(set);
+  return g;
+}
+function drawForearm(skin){   // 3 wide x 14 tall: finger, fist, sleeve. Pivots at the elbow.
+  const g = Array.from({length:14}, () => Array(3).fill(null));
+  for (let y=0;y<=2;y++) g[y][1] = S;
+  for (let y=3;y<=5;y++) for (let x=0;x<3;x++) g[y][x] = S;
+  for (let y=6;y<14;y++) for (let x=0;x<3;x++) g[y][x] = skin.pat(x+23, y+8);
+  return g;
+}
+function svg(g, px){
+  let r = "";
+  g.forEach((row,y) => row.forEach((c,x) => { if (c) r += `<rect x="${x}" y="${y}" width="1.03" height="1.03" fill="${c}"/>`; }));
+  return `<svg width="${g[0].length*px}" height="${g.length*px}" viewBox="0 0 ${g[0].length} ${g.length}" shape-rendering="crispEdges">${r}</svg>`;
+}
+
+const skin = SKINS[((P.skin % SKINS.length) + SKINS.length) % SKINS.length];
+const px = Math.max(6, Math.min(14, Math.floor(innerHeight * 0.62 / H)));
+const guy = document.getElementById("guy");
+guy.style.width = W*px + "px"; guy.style.height = H*px + "px";
+guy.innerHTML = svg(drawGuy(skin), px) + `<div id="arm" style="left:${23*px}px;top:${8*px}px">${svg(drawForearm(skin), px)}</div>`;
+document.getElementById("costume").textContent = "Costume: " + skin.name;
+
+// ---------- why + suggestions ----------
+const what = `${P.title ? "<b>" + esc(P.title) + "</b> from " : ""}<b>${esc(P.channel)}</b> is <b>${esc(P.category)}</b>.`;
+const mmss = s => { s = Math.max(0, Math.round(s)); return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0"); };
+const $ = id => document.getElementById(id);
+if (P.mode === "ask") {
+  document.body.classList.add("askmode");
+  $("matrix").textContent = "ARE YOU SURE? ".repeat(600);
+  document.querySelector("h1").textContent = "HOLD UP! ✋";
+  $("magic").textContent = "That's an entertainment video. 🍿";
+  $("why").innerHTML = `${what}<br>You only get <b>${P.funMin} minutes a day</b> of entertainment videos, and you have ` +
+    `<b>${mmss(P.funLeft)}</b> left today. Are you sure you want to pick this video?`;
+  $("ask").classList.remove("hidden");
+  ["pickTitle", "cards", "more"].forEach(id => $(id).classList.add("hidden"));
+  $("yes").onclick = () => send("fun", "");
+  $("no").onclick = () => { $("ask").classList.add("hidden"); ["pickTitle", "cards", "more"].forEach(id => $(id).classList.remove("hidden")); };
+} else if (P.mode === "funover") {
+  $("magic").textContent = "Your fun time is all used up for today! 🍿❌";
+  $("why").innerHTML = `${what}<br>You already used your <b>${P.funMin} minutes</b> of entertainment videos today. ` +
+    `Learning videos are still OK: <b>science, space, math, reading, music and piano</b>. 🚀➗📚🎹`;
+} else if (P.mode === "notnow") {
+  $("magic").textContent = `Fun videos are only from ${P.funWindow}! 🕓`;
+  $("why").innerHTML = `${what}<br>That's an entertainment video. Fun time is <b>${esc(P.funWindow)}</b> on school days. ` +
+    `Right now, learning videos are OK: <b>science, space, math, reading, music and piano</b>. 🚀➗📚🎹`;
+} else {
+  $("why").innerHTML = `${what}<br>On this computer, YouTube is for <b>science, space, math, reading, music and piano</b>. 🚀➗📚🎹`;
+}
+
+if (P.canEarn && (P.mode === "funover" || P.mode === "notnow")) {
+  $("earn").textContent = `🧠 Earn ${P.earnMinutes} more minutes: watch a short video + answer 5 questions`;
+  $("earn").classList.remove("hidden");
+  $("earn").onclick = () => send("earn", "");
+}
+
+// One card per slot (paper airplane, drawing, Science Max, What If, space). Start each slot at a random video.
+const starts = P.slots.map(s => Math.floor(Math.random() * s.videos.length));
+let round = 0;
+function render(){
+  const cards = $("cards");
+  cards.innerHTML = P.slots.map((s, i) => {
+    const v = s.videos[(starts[i] + round) % s.videos.length];
+    return `<div class="card" data-id="${esc(v.id)}"><div class="tag">${esc(s.label)}</div>` +
+      `<img src="https://i.ytimg.com/vi/${esc(v.id)}/mqdefault.jpg">` +
+      `<div class="t">${esc(v.title)}</div><div class="c">${esc(v.channel)}</div></div>`;
+  }).join("");
+  cards.querySelectorAll(".card").forEach(c => c.onclick = () => send("pick", c.dataset.id));
+}
+$("more").onclick = () => { round++; render(); };
+render();
+</script>
+</body></html>

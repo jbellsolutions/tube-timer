@@ -1,0 +1,231 @@
+{
+  "_help": "The 5 suggestion cards on the 'Ah ah ah' screen (one video from each slot; 'Show me different ones' rotates). Every video listed here is always allowed. 'channelHandles' are YouTube @handles whose channels are always allowed; 'alwaysAllowedChannels' are channel names (lowercase) that are always allowed.",
+  "slots": [
+    {
+      "label": "✈️ Paper airplane",
+      "videos": [
+        {
+          "id": "YPSgwMalDUA",
+          "title": "How to Make a Easy Jet Paper Plane",
+          "channel": "Craft N Toyz"
+        },
+        {
+          "id": "azFNMth9WOs",
+          "title": "How to make a Paper Airplane that flies Far 10000 Feet",
+          "channel": "Paper Planes Channel"
+        },
+        {
+          "id": "CCHA5X0Hlqk",
+          "title": "How to fold a paper airplane to fly forever",
+          "channel": "Paper Planes Channel"
+        },
+        {
+          "id": "TBuZ1ZHYC0s",
+          "title": "How To Make EASY Paper Airplanes that FLY FAR and FAST",
+          "channel": "Paper Planes Channel"
+        },
+        {
+          "id": "EkPkZoH_V2s",
+          "title": "Fastest Falcon Paper Plane Ever!",
+          "channel": "creasecruisecraft"
+        },
+        {
+          "id": "BKVkMsUeHD4",
+          "title": "How to Make a WORLD RECORD Paper Airplane",
+          "channel": "Ashi's Paper World"
+        },
+        {
+          "id": "jCs97oxuXTU",
+          "title": "Paper Planes 200 FEET!! How To Make Paper Airplane That Flies Far",
+          "channel": "BLACK PAPER PLANES"
+        }
+      ]
+    },
+    {
+      "label": "🎨 Drawing",
+      "videos": [
+        {
+          "id": "2oeoxksyphw",
+          "title": "How To Draw Stitch In A Pumpkin Folding Surprise",
+          "channel": "Art for Kids Hub"
+        },
+        {
+          "id": "u6MtOor1aU8",
+          "title": "How To Draw The Best Teacher Ever Folding Surprise",
+          "channel": "Art for Kids Hub"
+        },
+        {
+          "id": "YJgZagI0iW8",
+          "title": "How To Draw Space Folding Surprise",
+          "channel": "Art for Kids Hub"
+        },
+        {
+          "id": "QPcSceXFric",
+          "title": "How To Draw A Bean Sprout Folding Surprise",
+          "channel": "Art for Kids Hub"
+        },
+        {
+          "id": "mzE5nYM_zSI",
+          "title": "How To Draw A Soccer Ball Folding Surprise",
+          "channel": "Art for Kids Hub"
+        },
+        {
+          "id": "NB_9dHGxnjU",
+          "title": "How To Draw An Ice Cream Cart",
+          "channel": "Art for Kids Hub"
+        },
+        {
+          "id": "y3_YFmdY1ts",
+          "title": "How To Draw A Sun Folding Surprise For Summer",
+          "channel": "Art for Kids Hub"
+        }
+      ]
+    },
+    {
+      "label": "🧪 Science Max",
+      "videos": [
+        {
+          "id": "BthXCFigzUI",
+          "title": "Slime | FULL EPISODE | Science Max",
+          "channel": "Scholastic STEAM"
+        },
+        {
+          "id": "tSV8Oiw58hw",
+          "title": "Simple Machines Magic | Science Max",
+          "channel": "Scholastic After School"
+        },
+        {
+          "id": "_rb6pq-1jqA",
+          "title": "This Pasta Bridge Can Hold a Human! | Science Max",
+          "channel": "Science Max - Scholastic"
+        },
+        {
+          "id": "lW70Mu1yvw8",
+          "title": "Will a GIANT Paper Airplane Fly?! | Science Max",
+          "channel": "Science Max - Scholastic"
+        },
+        {
+          "id": "ZM-chwFVrAM",
+          "title": "Building a Rocket Car | Science Max",
+          "channel": "Science Max - Scholastic"
+        },
+        {
+          "id": "_D0L-hoRNTE",
+          "title": "The Science of Flight | Paper Airplane Experiment | Science Max",
+          "channel": "Science Max - Scholastic"
+        },
+        {
+          "id": "HPHhP6SX1ug",
+          "title": "WE MADE A GIANT MESS! Fun & Messy Science | Science Max",
+          "channel": "Science Max - Scholastic"
+        }
+      ]
+    },
+    {
+      "label": "🤔 What If",
+      "videos": [
+        {
+          "id": "Ul5Mn-tbdBU",
+          "title": "What If Planets Had Dreams",
+          "channel": "Ultra Space Balls"
+        },
+        {
+          "id": "RX-62n5troo",
+          "title": "What If Earth Had Rings?",
+          "channel": "Ultra Space Balls"
+        },
+        {
+          "id": "rVdQMcTTQCY",
+          "title": "What If You Create Life In A Lab?",
+          "channel": "Cleo Abram"
+        },
+        {
+          "id": "a-3cj32Nynk",
+          "title": "What if you walked the solar system?",
+          "channel": "What If"
+        },
+        {
+          "id": "yoZ-jfFdYnI",
+          "title": "What If Gravity Got 1% Stronger Every Second?",
+          "channel": "What If"
+        },
+        {
+          "id": "3HhCClcp8mY",
+          "title": "What If We Moved All 8 Billion People To Mars?",
+          "channel": "What If"
+        },
+        {
+          "id": "_M-7EIpkRko",
+          "title": "What If NASA Built a Moon City by 2032?",
+          "channel": "What If"
+        }
+      ]
+    },
+    {
+      "label": "🚀 Space",
+      "videos": [
+        {
+          "id": "r9yYB7K0ZgI",
+          "title": "There's A Secret Parking Spot in Space",
+          "channel": "Cleo Abram"
+        },
+        {
+          "id": "bwUO6mm9bLw",
+          "title": "How Big Other Planets Really Are",
+          "channel": "Cleo Abram"
+        },
+        {
+          "id": "z0lAjbjwOhU",
+          "title": "Race of the Planets",
+          "channel": "Ultra Space Balls"
+        },
+        {
+          "id": "Uvk-V7u-Fz4",
+          "title": "Which Planet Has the Prettiest Rings?",
+          "channel": "Ultra Space Balls"
+        },
+        {
+          "id": "6JLCyiToRdo",
+          "title": "How The Solar System Moves In Space",
+          "channel": "Zack D. Films"
+        },
+        {
+          "id": "jMKSp6YD2gM",
+          "title": "15 Space Facts You Learned Wrong",
+          "channel": "What If"
+        }
+      ]
+    }
+  ],
+  "channelHandles": [
+    "ScienceMax",
+    "MarkRober",
+    "SciShowKids",
+    "NatGeoKids",
+    "CrashCourseKids",
+    "SteveMould",
+    "StuffMadeHere",
+    "ChaseDiesInSpace",
+    "whatifscienceshow",
+    "NASA",
+    "EverydayAstronaut",
+    "RealEngineering",
+    "MustardChannel",
+    "EngineeringExplained",
+    "mathantics",
+    "StorylineOnline",
+    "Rousseau",
+    "PatrikPietschmann",
+    "TwoSetViolin"
+  ],
+  "alwaysAllowedChannels": [
+    "art for kids hub",
+    "science max",
+    "scholastic steam",
+    "scholastic after school",
+    "ultra space balls",
+    "cleo abram",
+    "paper planes channel",
+    "what if"
+  ]
+}

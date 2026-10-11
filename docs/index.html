@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tube Timer: break the YouTube loop</title>
+<meta name="description" content="A dad-built Mac app that keeps YouTube for learning, rations the brain-rot, and makes kids get up and move. No more daily screen-time fights.">
+<meta property="og:title" content="Tube Timer: it's not the screen time, it's the loop">
+<meta property="og:description" content="Learning stays unlimited. Brain-rot gets rationed. When time's up, the screen turns into a dance party that makes them get up and move.">
+<meta property="og:image" content="icon.png">
+<link rel="icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fff8ec; --paper:#ffffff; --ink:#1d1b16; --muted:#5b5649; --line:#eadfca;
+  --tomato:#ff5a36; --sun:#ffd23f; --grass:#2fae4f; --sky:#2b6cff; --night:#14122b; --lava:#ff7a00;
+  --radius:18px; --shadow:0 2px 0 #00000010, 0 12px 30px -12px #3a2a0040;
+  color-scheme: light;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.65 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+img{max-width:100%}
+a{color:var(--sky)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+.narrow{max-width:720px}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;line-height:1.12;margin:0 0 .5em;letter-spacing:-.01em}
+h1{font-size:clamp(38px,6.2vw,72px);font-weight:800}
+h2{font-size:clamp(30px,4.2vw,48px);font-weight:800}
+h3{font-size:22px;font-weight:600}
+p{margin:0 0 1em}
+.pixel{font-family:"Press Start 2P",monospace;letter-spacing:.02em}
+.eyebrow{display:inline-block;font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--tomato);margin-bottom:14px}
+.lead{font-size:clamp(18px,2vw,21px);color:var(--muted)}
+section{padding:84px 0}
+sup a{text-decoration:none;font-size:.7em;font-weight:700;color:var(--muted)}
+
+/* nav */
+nav{position:sticky;top:0;z-index:20;background:#fff8ecf0;backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;gap:12px}
+.logo{display:flex;align-items:center;gap:10px;font-family:Fraunces,serif;font-weight:800;font-size:22px;color:var(--ink);text-decoration:none}
+.logo img{width:36px;height:36px;border-radius:9px}
+nav .links{display:flex;gap:22px;align-items:center}
+nav .links a{color:var(--ink);text-decoration:none;font-weight:600;font-size:15px}
+.logo,.btn{white-space:nowrap}
+@media (max-width:760px){nav .links a:not(.btn){display:none} .logo{font-size:19px} .logo img{width:30px;height:30px}}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:17px;padding:15px 24px;border-radius:14px;
+  text-decoration:none;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);transition:transform .08s, box-shadow .08s;cursor:pointer}
+.btn:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
+.btn.primary{background:var(--tomato);color:#fff}
+.btn.secondary{background:var(--sun);color:var(--ink)}
+.btn.ghost{background:#fff;color:var(--ink)}
+.btn.small{font-size:15px;padding:9px 16px;box-shadow:3px 3px 0 var(--ink)}
+.cta-row{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.fine{font-size:14px;color:var(--muted)}
+
+/* hero */
+.hero{padding:56px 0 40px;overflow:hidden}
+.hero-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center}
+@media (max-width:900px){.hero-grid{grid-template-columns:1fr}}
+.hero h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--sun) 62%)}
+.laptop{position:relative;background:#222;border-radius:18px 18px 6px 6px;padding:12px 12px 16px;box-shadow:var(--shadow)}
+.laptop::after{content:"";position:absolute;left:-6%;right:-6%;bottom:-14px;height:14px;background:#c9c9cf;border-radius:0 0 14px 14px}
+.screen{position:relative;width:100%;aspect-ratio:16/10;overflow:hidden;border-radius:6px;background:#000}
+.screen iframe{position:absolute;top:0;left:0;width:1280px;height:800px;border:0;transform-origin:0 0}
+.hero .badge{position:absolute;top:-16px;right:-10px;z-index:2;background:var(--grass);color:#fff;font-weight:700;font-size:13px;padding:8px 12px;border-radius:999px;border:3px solid var(--ink);transform:rotate(4deg)}
+
+/* stats */
+.stats{background:var(--night);color:#fff;padding:44px 0}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
+@media (max-width:760px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
+.stat b{display:block;font-family:Fraunces,serif;font-size:clamp(34px,4.5vw,52px);line-height:1;color:var(--sun)}
+.stat span{font-size:15px;color:#d8d5ee}
+.stat sup a{color:#a9a5c9}
+
+/* story */
+.story{background:var(--paper);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.story p{font-size:19px}
+.story .sig{font-family:Fraunces,serif;font-size:22px;font-weight:600}
+.pull{font-family:Fraunces,serif;font-size:clamp(24px,3vw,32px);line-height:1.3;border-left:6px solid var(--tomato);padding:4px 0 4px 22px;margin:30px 0}
+
+/* loop diagram */
+.loop{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px}
+@media (max-width:820px){.loop{grid-template-columns:1fr}}
+.step{background:var(--paper);border:3px solid var(--ink);border-radius:var(--radius);padding:24px;box-shadow:5px 5px 0 var(--ink);position:relative}
+.step .n{font-family:"Press Start 2P",monospace;font-size:12px;color:var(--tomato)}
+.step h3{margin-top:10px}
+.step p{margin:0;color:var(--muted)}
+.bigidea{margin-top:44px;background:var(--sun);border:3px solid var(--ink);border-radius:var(--radius);padding:28px 30px;box-shadow:6px 6px 0 var(--ink)}
+.bigidea p{margin:0;font-size:19px}
+.bigidea strong{font-family:Fraunces,serif;font-size:26px;display:block;margin-bottom:6px}
+
+/* costs */
+.costs{background:var(--night);color:#fff}
+.costs .lead{color:#d0cde6}
+.cost-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:30px}
+@media (max-width:900px){.cost-grid{grid-template-columns:1fr 1fr}}
+@media (max-width:600px){.cost-grid{grid-template-columns:1fr}}
+.cost{background:#ffffff0d;border:1px solid #ffffff22;border-radius:var(--radius);padding:22px}
+.cost b{display:block;font-family:Fraunces,serif;font-size:36px;color:var(--sun);line-height:1.05;margin-bottom:8px}
+.cost p{margin:0;color:#dedbf2;font-size:15.5px}
+.cost sup a{color:#a9a5c9}
+.caveat{margin-top:18px;font-size:14px;color:#a9a5c9}
+
+/* solution */
+.pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:30px 0 40px}
+@media (max-width:900px){.pillars{grid-template-columns:1fr 1fr}}
+@media (max-width:520px){.pillars{grid-template-columns:1fr}}
+.pillar{background:var(--paper);border-radius:var(--radius);padding:22px;border:1px solid var(--line);box-shadow:var(--shadow)}
+.pillar .ico{font-size:34px}
+.pillar h3{margin:6px 0 6px}
+.pillar p{margin:0;color:var(--muted);font-size:15.5px}
+.tabs{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}
+.tab{font:700 15px Inter,sans-serif;padding:10px 16px;border-radius:999px;border:2px solid var(--ink);background:#fff;cursor:pointer}
+.tab[aria-selected=true]{background:var(--ink);color:#fff}
+.demo-cap{margin-top:30px;color:var(--muted);font-size:15px;text-align:center}
+
+/* features */
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+@media (max-width:900px){.feat-grid{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.feat-grid{grid-template-columns:1fr}}
+.feat{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+.feat b{display:block;margin-bottom:2px}
+.feat span{color:var(--muted);font-size:15px}
+
+/* compare */
+.table-wrap{overflow-x:auto;margin-top:26px;border-radius:var(--radius);border:3px solid var(--ink);box-shadow:6px 6px 0 var(--ink);background:#fff}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:15px}
+th,td{padding:13px 14px;text-align:center;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left;font-weight:600}
+thead th{background:#faf3e3;font-family:Fraunces,serif;font-size:16px}
+thead th.us{background:var(--sun)}
+td.us{background:#fff7d6;font-weight:700}
+tr:last-child td{border-bottom:0}
+.y{color:var(--grass);font-weight:800}.n{color:#c33}.m{color:#b07a00}
+
+/* gap */
+.gap{background:var(--paper);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.gap-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+@media (max-width:860px){.gap-grid{grid-template-columns:1fr}}
+.checks{list-style:none;padding:0;margin:0}
+.checks li{padding:8px 0 8px 34px;position:relative}
+.checks li::before{content:"✓";position:absolute;left:0;top:7px;width:24px;height:24px;border-radius:50%;background:var(--grass);color:#fff;font-weight:800;font-size:14px;display:grid;place-items:center}
+.gap-card{background:var(--night);color:#fff;border-radius:var(--radius);padding:30px;box-shadow:var(--shadow)}
+.gap-card .pixel{font-size:12px;color:var(--sun)}
+.gap-card p{color:#d8d5ee}
+
+/* pricing */
+.pricing{background:linear-gradient(180deg,var(--bg),#ffe9c4)}
+.price-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:34px;align-items:stretch}
+@media (max-width:860px){.price-grid{grid-template-columns:1fr}}
+.plan{background:#fff;border:3px solid var(--ink);border-radius:22px;padding:30px;box-shadow:8px 8px 0 var(--ink);display:flex;flex-direction:column}
+.plan.featured{background:var(--night);color:#fff;position:relative}
+.plan.featured .fine,.plan.featured li{color:#e3e0f5}
+.plan .tag{position:absolute;top:-16px;left:24px;background:var(--grass);color:#fff;font-weight:800;font-size:13px;padding:6px 12px;border-radius:999px;border:3px solid var(--ink)}
+.price{font-family:Fraunces,serif;font-size:56px;font-weight:800;line-height:1;margin:6px 0}
+.price small{font-size:18px;font-weight:600}
+.plan ul{margin:18px 0 24px;padding-left:20px}
+.plan li{margin:6px 0}
+.plan .btn{margin-top:auto;width:100%}
+.coupon{margin-top:14px;display:flex;gap:8px}
+.coupon input{flex:1;min-width:0;font:600 15px Inter,sans-serif;padding:10px 12px;border:2px solid var(--ink);border-radius:10px}
+.guarantee{text-align:center;margin-top:30px;color:var(--muted)}
+
+/* faq */
+details{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin:10px 0}
+summary{font-weight:700;cursor:pointer;font-size:17.5px}
+details p{margin:10px 0 0;color:var(--muted)}
+
+/* sources + footer */
+.sources ol{font-size:14px;color:var(--muted);padding-left:20px}
+.sources li{margin:6px 0}
+footer{background:var(--night);color:#cfcbe6;padding:40px 0;font-size:14px}
+footer a{color:#fff}
+.final{text-align:center}
+.final .cta-row{justify-content:center}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="#top"><img src="icon.png" alt="">Tube Timer</a>
+    <div class="links">
+      <a href="#how">How it works</a>
+      <a href="#demo">See it</a>
+      <a href="#faq">FAQ</a>
+      <a class="btn small primary" href="#pricing">Get Tube Timer</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">For parents who are tired of losing the YouTube fight</span>
+      <h1>It's not the screen time. <em>It's the loop.</em></h1>
+      <p class="lead">Tube Timer is the dad-built Mac app that breaks YouTube's autoplay loop. <b>Learning stays unlimited. Brain-rot gets rationed.</b> And when time's up, the screen turns into a dance party that makes your kid <b>get up and move</b>.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="#pricing">Get Tube Timer for Mac</a>
+        <a class="btn ghost" href="#demo">▶ See what kids see</a>
+      </div>
+      <p class="fine" style="margin-top:14px">One-time $50, or free with a 7-day trial of our parents' community. Works with Chrome, Safari, Brave, Edge &amp; Arc.</p>
+    </div>
+    <div style="position:relative">
+      <span class="badge">LIVE DEMO 👇</span>
+      <div class="laptop"><div class="screen"><iframe data-src="demo/party.html" title="Tube Timer get-up break demo" loading="lazy"></iframe></div></div>
+    </div>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="wrap stat-grid">
+    <div class="stat"><b>5½ hrs</b><span>of screen media a day for the average kid age 8–12<sup><a href="#s1">1</a></sup></span></div>
+    <div class="stat"><b>85%</b><span>of kids 12 and under watch YouTube. Half of them daily.<sup><a href="#s2">2</a></sup></span></div>
+    <div class="stat"><b>62%</b><span>of kids <i>under two</i> now watch YouTube, up from 45% in 2020<sup><a href="#s2">2</a></sup></span></div>
+    <div class="stat"><b>3 in 5</b><span>parents feel guilty about their child's screen time<sup><a href="#s3">3</a></sup></span></div>
+  </div>
+</div>
+
+<section class="story">
+  <div class="wrap narrow">
+    <span class="eyebrow">Why I built this</span>
+    <h2>I'm a dad. I was losing my son to YouTube.</h2>
+    <p>Not to the good stuff. To the <i>other</i> stuff. Minecraft "secret room" videos. "Noob vs Pro." Kid vloggers building treehouses for 40 minutes. One video bled into the next. Autoplay did the work, and by the time I looked up, the whole afternoon was gone.</p>
+    <p>I tried everything. Apple's Screen Time. YouTube Kids. Timers on the kitchen counter. Taking the laptop away. Every one ended the same way: <b>a fight, a workaround, or a meltdown.</b> Usually all three.</p>
+    <p>But I noticed something. When the screen actually went off, he got up. He walked around. He sat down at the piano and played. He built stuff. He was still in there. He just needed something to <b>break the loop</b>.</p>
+    <div class="pull">I didn't need another "off" switch. I needed something that knew the difference between a science video and brain-rot, and made him get up when it mattered.</div>
+    <p>Nothing out there did that. So I built it for his computer. It worked so well that I'm sharing it with other parents.</p>
+    <p class="sig">Dad, and the builder of Tube Timer</p>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <span class="eyebrow">Why every screen-time app you've tried has failed</span>
+    <h2>Your kid is stuck in the <span style="color:var(--tomato)">Autoplay Loop</span>.</h2>
+    <p class="lead narrow">It isn't a willpower problem, his or yours. It's a design problem. YouTube is built to never end, and most parental controls only know one move: <i>off</i>.</p>
+    <div class="loop">
+      <div class="step"><div class="n">STEP 1</div><h3>The feed never ends</h3><p>The algorithm serves flashy, no-value videos on autoplay, each one picked to keep him watching the next. There's even a word for it now: <b>"brain rot,"</b> Oxford's 2024 Word of the Year.<sup><a href="#s4">4</a></sup></p></div>
+      <div class="step"><div class="n">STEP 2</div><h3>Blockers start a war</h3><p>All-or-nothing limits can't tell Science Max from a prank channel. So kids fight them, or find the workaround everyone's sharing online.<sup><a href="#s5">5</a></sup> The fight becomes the routine.</p></div>
+      <div class="step"><div class="n">STEP 3</div><h3>Then nothing fills the gap</h3><p>When the screen finally goes off, he's bored, and boredom sends him right back to the screen. The loop restarts tomorrow.</p></div>
+    </div>
+    <div class="bigidea">
+      <strong>The research points the same way: it's the loop, not the minutes.</strong>
+      <p>A 2025 <i>JAMA</i> study followed more than 4,000 kids. Total screen time didn't predict their mental-health problems. <b>Addictive patterns of use did</b>, with roughly double the risk of suicidal behaviors.<sup><a href="#s6">6</a></sup> Counting minutes was never going to fix this. You have to break the pattern.</p>
+    </div>
+  </div>
+</section>
+
+<section class="costs">
+  <div class="wrap">
+    <span class="eyebrow" style="color:var(--sun)">What the loop costs our kids</span>
+    <h2>This isn't just "too much TV."</h2>
+    <p class="lead narrow">Most parents feel it in their gut before they ever read a study. Here's what the research says.</p>
+    <div class="cost-grid">
+      <div class="cost"><b>~2×</b><p>the risk of suicidal behaviors in kids with high or rising <i>addictive</i> screen use, in a study of 4,000+ children.<sup><a href="#s6">6</a></sup></p></div>
+      <div class="cost"><b>40%+</b><p>of kids showed signs of video-game addiction by 14, and about a third, rising social-media addiction.<sup><a href="#s6">6</a></sup></p></div>
+      <div class="cost"><b>4.8×</b><p>higher odds of communication delays at age 2 for babies with 4+ hours of screen time a day at age 1.<sup><a href="#s7">7</a></sup></p></div>
+      <div class="cost"><b>54% vs 70%</b><p>Teens with 4+ hours of screen time a day were far less likely to get an hour of activity than those with 2 or fewer.<sup><a href="#s8">8</a></sup></p></div>
+      <div class="cost"><b>1 in 5</b><p>kids ages 6–17 meet national physical-activity guidelines.<sup><a href="#s9">9</a></sup></p></div>
+      <div class="cost"><b>61%</b><p>of parents who let young kids watch YouTube have found content they felt was unsuitable for children.<sup><a href="#s10">10</a></sup></p></div>
+    </div>
+    <p class="caveat">These are association studies. They show links, not proof that screens cause these problems. But the pattern across the research is hard to ignore, and it's why Tube Timer targets <i>habits</i>, not just hours.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <span class="eyebrow">The fix</span>
+    <h2>Tube Timer runs the <span style="color:var(--grass)">Get-Up Loop</span> instead.</h2>
+    <p class="lead narrow">Four simple moves that turn YouTube back into a tool. No daily fights, because the app is the bad guy, not you.</p>
+    <div class="pillars">
+      <div class="pillar"><div class="ico">🧠</div><h3>1. Sort</h3><p>Science, space, math, reading, art, crafts, quizzes and music are <b>always OK</b>. Passive brain-rot gets a small daily allowance. Inappropriate stuff is blocked.</p></div>
+      <div class="pillar"><div class="ico">⏯</div><h3>2. Ration</h3><p>A daily limit and a small <b>"fun time"</b> budget, counted <b>only while a video is actually playing</b>. Paused or searching doesn't count.</p></div>
+      <div class="pillar"><div class="ico">🕺</div><h3>3. Move</h3><p>After a sitting, the screen becomes a dance party with dancing chickens: <i>get up, go outside, talk to people, shake your butt.</i> It can't be clicked away.</p></div>
+      <div class="pillar"><div class="ico">🏆</div><h3>4. Earn</h3><p>Want more fun time? Watch a short math or science video and <b>answer 5 questions</b>. Pass, and you get +20 minutes. Learning becomes the currency.</p></div>
+    </div>
+
+    <div id="demo">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-demo="demo/party.html">🕺 The get-up break</button>
+        <button class="tab" role="tab" aria-selected="false" data-demo="demo/nope.html">🙅 "Ah ah ah!"</button>
+        <button class="tab" role="tab" aria-selected="false" data-demo="demo/ask.html">✋ "Hold up. Are you sure?"</button>
+        <button class="tab" role="tab" aria-selected="false" data-demo="demo/earn.html">🧠 Earn more time</button>
+      </div>
+      <div class="laptop"><div class="screen"><iframe id="demoFrame" data-src="demo/party.html" title="Tube Timer screen demo" loading="lazy"></iframe></div></div>
+      <p class="demo-cap" id="demoCap">When a sitting is over, YouTube closes and the dance party takes over the screen until the break ends. Kids can't click it away.</p>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:20px">
+  <div class="wrap">
+    <span class="eyebrow">Everything in the box</span>
+    <h2>Built by a parent, for the way kids actually are.</h2>
+    <div class="feat-grid">
+      <div class="feat"><b>⏱ Live countdown on screen</b><span>Kids always know how much YouTube and fun time is left. No surprises, no "you never told me!"</span></div>
+      <div class="feat"><b>🙅 "Ah ah ah!" with 5 better picks</b><span>A different pixel-costume character every time, offering paper airplanes, drawing, Science Max, What If and space videos instead.</span></div>
+      <div class="feat"><b>🌙 YouTube bedtime</b><span>Shuts off overnight (you pick the hours). No more 11 PM autoplay.</span></div>
+      <div class="feat"><b>🎉 Fun-time window</b><span>Entertainment videos only during the hours you choose. Weekends get more.</span></div>
+      <div class="feat"><b>⏰ 1-minute warning</b><span>A banner and a friendly voice: "You've got one minute left." Transitions go way smoother.</span></div>
+      <div class="feat"><b>🔒 Parent PIN</b><span>Settings, extra time and the off switch are all behind your 4-digit PIN.</span></div>
+      <div class="feat"><b>📝 "Explain it" answers</b><span>Read what your kid wrote about the video he watched to earn his time. A built-in honesty check.</span></div>
+      <div class="feat"><b>🤖 Optional AI judge</b><span>Plug in an AI key and Claude judges each new video against <i>your</i> rules. Generous with learning, strict on brain-rot.</span></div>
+      <div class="feat"><b>🛡 Private by design</b><span>No accounts, no tracking. Everything stays on your Mac.</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <span class="eyebrow">How it compares</span>
+    <h2>Other tools block or spy. Tube Timer <i>teaches</i>.</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th class="us">Tube Timer</th><th>Apple Screen Time / Family Link</th><th>YouTube Kids</th><th>Qustodio / Bark</th><th>"Quiz to unlock" apps</th></tr></thead>
+        <tbody>
+          <tr><td>Knows learning from brain-rot <i>on the same site</i></td><td class="us y">✓</td><td class="n">✗</td><td class="m">Age filter</td><td class="m">Categories</td><td class="n">✗</td></tr>
+          <tr><td>Counts only time actually watching</td><td class="us y">✓</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+          <tr><td>Forces a get-up-and-move break</td><td class="us y">✓</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td></tr>
+          <tr><td>Kids earn time by learning</td><td class="us y">✓</td><td class="n">✗</td><td class="n">✗</td><td class="n">✗</td><td class="y">✓</td></tr>
+          <tr><td>Suggests better videos instead of just "no"</td><td class="us y">✓</td><td class="n">✗</td><td class="m">Some</td><td class="n">✗</td><td class="n">✗</td></tr>
+          <tr><td>Works on the family computer</td><td class="us y">✓</td><td class="y">✓</td><td class="m">Limited</td><td class="y">✓</td><td class="n">Mostly phones</td></tr>
+          <tr><td>Price</td><td class="us">$50 once</td><td>Free</td><td>Free</td><td>~$55–$105/yr</td><td>Subscriptions</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine" style="margin-top:14px">Competitor details are from public listings and reviews as of 2025–2026 and may change.<sup><a href="#s11">11</a></sup></p>
+  </div>
+</section>
+
+<section class="gap">
+  <div class="wrap gap-grid">
+    <div>
+      <span class="eyebrow">The part nobody talks about</span>
+      <h2>Okay, they're off the screen. <i>Now what?</i></h2>
+      <p class="lead">This is where most parents get stuck. The kid is bored, cranky, and asking to go back on. Breaking the loop is half the job. <b>Filling the gap</b> is the other half.</p>
+      <p>That's why we started a parents' community. It's where we share everything we've built and tested with our own kids:</p>
+      <ul class="checks">
+        <li><b>Tube Timer</b> plus <b>dozens of other kid-safe apps and tools</b> we've built</li>
+        <li><b>Minecraft learning mods</b> that turn their favorite game into lessons</li>
+        <li>Our <b>learning curriculum</b> and "screens-off" activity playbooks</li>
+        <li>Real parents solving the same problem, without judgment</li>
+        <li>New screen-time solutions as we build them, including mobile</li>
+      </ul>
+    </div>
+    <div class="gap-card">
+      <div class="pixel">PARENTS' COMMUNITY</div>
+      <h3 style="font-size:30px;margin-top:12px">Try everything free for 7 days.</h3>
+      <p>Get Tube Timer and every other app, mod and playbook in the community. Cancel anytime during the trial and pay nothing.</p>
+      <a class="btn secondary" data-link="skool" href="#pricing">Start my free 7-day trial →</a>
+    </div>
+  </div>
+</section>
+
+<section class="pricing" id="pricing">
+  <div class="wrap">
+    <div style="text-align:center">
+      <span class="eyebrow">Get Tube Timer</span>
+      <h2>Two ways to break the loop tonight.</h2>
+      <p class="lead">Installs in about 2 minutes. Mac (macOS 13+) now. Phones and tablets coming soon.</p>
+    </div>
+    <div class="price-grid">
+      <div class="plan">
+        <h3>Download Tube Timer</h3>
+        <div class="price">$50 <small>one time</small></div>
+        <p class="fine">Yours forever. No subscription.</p>
+        <ul>
+          <li>The full Tube Timer Mac app</li>
+          <li>Everything above: sorting, real-play timer, get-up breaks, earn-time quizzes, bedtime, PIN</li>
+          <li>Free updates</li>
+          <li><b>🎁 Bonus:</b> the mobile app <b>free</b> when it launches</li>
+        </ul>
+        <a class="btn primary" data-link="gumroad" href="#">Download now for $50</a>
+        <form class="coupon" id="couponForm">
+          <input id="couponCode" placeholder="Have a tester code?" aria-label="Coupon code" autocomplete="off">
+          <button class="btn small ghost" type="submit">Apply</button>
+        </form>
+      </div>
+      <div class="plan featured">
+        <span class="tag">BEST VALUE</span>
+        <h3>Join the Parents' Community</h3>
+        <div class="price">Free <small>for 7 days</small></div>
+        <p class="fine">Then continue at the community rate, or cancel anytime during the trial.</p>
+        <ul>
+          <li><b>Tube Timer included</b>. Download it today</li>
+          <li><b>Dozens of other apps</b> for screen time, learning and kids' safety</li>
+          <li><b>Minecraft learning mods</b></li>
+          <li>The <b>learning curriculum</b> and "screens-off" playbooks</li>
+          <li>A community of parents fighting the same fight</li>
+        </ul>
+        <a class="btn secondary" data-link="skool" href="#">Start my free 7-day trial</a>
+      </div>
+    </div>
+    <p class="guarantee">🔒 Secure checkout. Questions before you buy? <a href="#faq">Read the FAQ</a>.</p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap narrow">
+    <span class="eyebrow">Questions parents ask</span>
+    <h2>FAQ</h2>
+    <details><summary>Does it work on Windows, iPad or phones?</summary><p>Right now Tube Timer runs on Macs (macOS 13 Ventura or newer) and watches YouTube in Chrome, Safari, Brave, Edge and Arc. A mobile version is coming soon. If you buy the Mac download, you'll get it free. Windows is on the roadmap.</p></details>
+    <details><summary>Will my kid just get around it?</summary><p>The breaks and blocks take over the whole screen and can't be clicked away, and every setting is behind your PIN. For the strongest setup, give your child a <b>Standard</b> (non-admin) macOS account, so they can't quit or delete apps.</p></details>
+    <details><summary>Does it block all of YouTube?</summary><p>No. That's the point. Learning videos (science, space, math, reading, art, crafts, quizzes, music) stay open. Pure "brain-rot" gets a small daily fun-time budget you control. Only inappropriate stuff is blocked outright. You can always-allow or always-block specific channels.</p></details>
+    <details><summary>How does it know what's a learning video?</summary><p>It reads each video's public YouTube info (title, channel, category, family-safe flag) and applies smart rules. A clear learning angle like "quiz," "science" or "how to draw" wins even on a gaming channel. You can add an optional AI key so Claude judges tricky videos by your rules.</p></details>
+    <details><summary>Is my family's data collected?</summary><p>No. There are no accounts and no tracking. Everything runs and stays on your Mac.</p></details>
+    <details><summary>Is there a free version?</summary><p>Yes. Tube Timer's source code is public on <a data-link="github" href="#">GitHub</a> for technical parents who want to build it themselves with Terminal. The paid download is the easy, ready-to-run version, and it supports a dad building more of these tools.</p></details>
+    <details><summary>Can I customize the times, limits and videos?</summary><p>Everything: daily limit, sitting length, break length, fun-time minutes, weekend rules, fun-time hours, YouTube bedtime, allowed categories and channels, the suggested videos, and the earn-time quizzes.</p></details>
+  </div>
+</section>
+
+<section class="final" style="padding-top:20px">
+  <div class="wrap narrow">
+    <h2>Tonight could be the last YouTube fight.</h2>
+    <p class="lead">Let the app be the bad guy. Get your kid back: up, moving, learning, maybe even at the piano.</p>
+    <div class="cta-row">
+      <a class="btn primary" data-link="gumroad" href="#">Download for $50</a>
+      <a class="btn secondary" data-link="skool" href="#">Or try free for 7 days</a>
+    </div>
+  </div>
+</section>
+
+<section class="sources" id="sources" style="padding-top:20px">
+  <div class="wrap narrow">
+    <h3>Sources</h3>
+    <ol>
+      <li id="s1">Common Sense Media, 2021 census of tweens and teens, as summarized by the <a href="https://www.aap.org/en/patient-care/media-and-children/center-of-excellence-on-social-media-and-youth-mental-health/qa-portal/qa-portal-library/qa-portal-library-questions/average-amounts-of-screen-time/">American Academy of Pediatrics</a>.</li>
+      <li id="s2">Pew Research Center, <a href="https://www.pewresearch.org/internet/2025/10/08/how-parents-manage-screen-time-for-kids/">"How Parents Manage Screen Time for Kids,"</a> Oct 2025 (3,054 U.S. parents of kids 12 and under).</li>
+      <li id="s3">Lurie Children's Hospital of Chicago, <a href="https://www.luriechildrens.org/en/blog/screen-time-2025">2025 parent survey on screen time</a>.</li>
+      <li id="s4">Oxford University Press, 2024 Word of the Year: "brain rot" (<a href="https://www.kttc.com/2024/12/02/whats-oxfords-word-year/">coverage</a>).</li>
+      <li id="s5">Reports of kids bypassing Apple Screen Time: <a href="https://www.iphoneincanada.ca/news/bypass-apple-screen-time/">iPhone in Canada / Washington Post</a>; <a href="https://www.techradar.com/phones/ios/apple-admits-bug-is-breaking-screen-time-parental-controls-on-ios-devices-but-a-fix-is-coming">TechRadar</a>.</li>
+      <li id="s6">Xiao Y, et al. Addictive screen use trajectories and suicidal behaviors, suicidal ideation, and mental health in US youths. <i>JAMA</i>, June 2025 (<a href="https://www.nyp.org/advances/article/pediatric-psychiatry/jama-study-links-addictive-screen-use-to-suicidal-behavior-in-adolescents">summary</a>; <a href="https://www.wfae.org/health/2025-06-18/screen-addiction-and-suicidal-behaviors-are-linked-for-teens-a-study-shows">NPR</a>).</li>
+      <li id="s7">Takahashi I, et al. Screen time at age 1 year and communication and problem-solving developmental delay at 2 and 4 years. <i>JAMA Pediatrics</i>, Aug 2023 (<a href="https://www.scimex.org/newsfeed/screen-time-at-age-1-associated-with-communication-and-problem-solving-issues-at-age-2-and-4">summary</a>).</li>
+      <li id="s8">CDC, <a href="https://www.cdc.gov/mmwr/volumes/73/wr/mm7344a5.htm">MMWR QuickStats</a>, 2024: physical activity by daily screen time, ages 12–17.</li>
+      <li id="s9">2024 U.S. Report Card on Physical Activity for Children and Youth (<a href="https://www.healio.com/news/pediatrics/20241107/1-in-5-youths-meet-daily-physical-activity-guidelines">Healio</a>).</li>
+      <li id="s10">Pew Research Center, <a href="https://www.pewresearch.org/data-labs/2018/11/07/many-turn-to-youtube-for-childrens-content-news-how-to-lessons/">"Many Turn to YouTube for Children's Content…,"</a> 2018.</li>
+      <li id="s11">Competitor pricing and features from public product pages and reviews (e.g., <a href="https://www.airdroid.com/parent-control/bark-vs-qustodio-vs-net-nanny/">AirDroid comparison</a>, app store listings), 2025–2026.</li>
+    </ol>
+    <p class="fine">Tube Timer is an independent product and is not affiliated with, endorsed by, or sponsored by YouTube or Google. YouTube is a trademark of Google LLC. Minecraft is a trademark of Mojang Synergies AB. Tube Timer is a parenting tool, not medical advice.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px">
+    <span>© <span id="yr"></span> Tube Timer. Made by a dad, for parents.</span>
+    <span><a data-link="github" href="#">Source on GitHub</a> · <a href="#faq">FAQ</a> · <a href="#sources">Sources</a></span>
+  </div>
+</footer>
+
+<script>
+// ===== Edit these links when your accounts are set up =====
+const CONFIG = {
+  gumroad: "https://jbellsolutions.gumroad.com/l/tubetimer",     // Gumroad product link ($50)
+  skool:   "https://www.skool.com/REPLACE-WITH-YOUR-COMMUNITY",   // Skool community (7-day free trial)
+  github:  "https://github.com/jbellsolutions/tube-timer",
+};
+// ==========================================================
+
+document.querySelectorAll("[data-link]").forEach(a => {
+  a.href = CONFIG[a.dataset.link];
+  if (a.dataset.link !== "github") a.target = "_blank";
+  a.rel = "noopener";
+});
+document.getElementById("yr").textContent = new Date().getFullYear();
+
+// Tester coupons: Gumroad applies a discount code that's added to the end of the product link.
+document.getElementById("couponForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const code = document.getElementById("couponCode").value.trim();
+  window.open(CONFIG.gumroad + (code ? "/" + encodeURIComponent(code) : ""), "_blank", "noopener");
+});
+
+// Scale the 1280×800 demo screens to fit their laptop frames; load them only when they scroll into view.
+function fit(frame) {
+  const box = frame.parentElement;
+  frame.style.transform = `scale(${box.clientWidth / 1280})`;
+}
+const frames = document.querySelectorAll(".screen iframe");
+const io = new IntersectionObserver(entries => entries.forEach(en => {
+  if (en.isIntersecting && !en.target.src) en.target.src = en.target.dataset.src;
+}), {rootMargin: "200px"});
+frames.forEach(f => { fit(f); io.observe(f); });
+addEventListener("resize", () => frames.forEach(fit));
+
+// Demo tabs
+const caps = {
+  "demo/party.html": "When a sitting is over, YouTube closes and the dance party takes over the screen until the break ends. Kids can't click it away.",
+  "demo/nope.html": "Open a brain-rot video after fun time is used up? A pixel character (in a new costume every time) says \"Ah ah ah!\" and offers 5 better videos.",
+  "demo/ask.html": "Entertainment videos use the daily fun-time budget. Kids have to choose it on purpose. That small pause breaks the autoplay habit.",
+  "demo/earn.html": "Kids earn +20 minutes by watching a short learning video (it doesn't count against their time) and answering 5 questions. Try it!",
+};
+const demoFrame = document.getElementById("demoFrame");
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", x === t));
+  demoFrame.src = t.dataset.demo;
+  document.getElementById("demoCap").textContent = caps[t.dataset.demo];
+}));
+</script>
+</body>
+</html>

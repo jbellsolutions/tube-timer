@@ -1,0 +1,1496 @@
+// Tube Timer - a Mac menu bar app that limits YouTube time, keeps it to learning videos,
+// and makes kids get up and move. https://github.com/jbellsolutions/tube-timer
+import Cocoa
+import SwiftUI
+import WebKit
+
+let kGapSec: Double = 5 * 60     // this long away from YouTube starts a fresh sitting
+let kWarnSec: Double = 60        // "1 minute left" warning
+let kExtraSec: Double = 10 * 60
+let kReshowSec: Double = 5 * 60  // party length when YouTube is reopened during a lock
+let kEarnMinutes = 20          // fun minutes earned per video + quiz
+let kMaxEarnsPerDay = 2
+
+// MARK: - Daily schedule (the Mac's local time; minutes after midnight, set in the app)
+
+let kScheduleDefaults: [String: Any] = [
+    "funStart": 16 * 60,        // fun (entertainment) videos allowed from 4:00 PM...
+    "funEnd": 20 * 60 + 30,     // ...until 8:30 PM on weekdays
+    "weekendFunAllDay": true,   // weekends: fun allowed whenever YouTube is on
+    "offStart": 21 * 60,        // YouTube off from 9:00 PM...
+    "offEnd": 6 * 60,           // ...until 6:00 AM
+]
+var kFunStart: Int { UserDefaults.standard.integer(forKey: "funStart") }
+var kFunEnd: Int { UserDefaults.standard.integer(forKey: "funEnd") }
+var kOffStart: Int { UserDefaults.standard.integer(forKey: "offStart") }
+var kOffEnd: Int { UserDefaults.standard.integer(forKey: "offEnd") }
+
+func minutesNow() -> Int {
+    let c = Calendar.current.dateComponents([.hour, .minute], from: Date())
+    return (c.hour ?? 0) * 60 + (c.minute ?? 0)
+}
+/// "4:00 PM" from minutes after midnight.
+func timeText(_ m: Int) -> String {
+    let d = Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: Date())!
+    let f = DateFormatter(); f.dateFormat = "h:mm a"
+    return f.string(from: d)
+}
+var funWindowText: String { "\(timeText(kFunStart))–\(timeText(kFunEnd))" }
+var offHoursText: String { "\(timeText(kOffStart))–\(timeText(kOffEnd))" }
+var isWeekend: Bool { Calendar.current.isDateInWeekend(Date()) }
+/// In the fun window (weekdays) or a weekend day. The YouTube-off hours still apply on top.
+var inFunWindow: Bool {
+    if isWeekend && UserDefaults.standard.bool(forKey: "weekendFunAllDay") { return true }
+    let m = minutesNow(); return m >= kFunStart && m < kFunEnd
+}
+var inYouTubeOffHours: Bool {
+    let m = minutesNow()
+    if kOffStart == kOffEnd { return false }  // same time = no off hours
+    return kOffStart > kOffEnd ? (m >= kOffStart || m < kOffEnd) : (m >= kOffStart && m < kOffEnd)
+}
+/// When the YouTube-off hours end next.
+func offHoursEnd() -> Double {
+    let now = Date()
+    var end = Calendar.current.date(bySettingHour: kOffEnd / 60, minute: kOffEnd % 60, second: 0, of: now)!
+    if end <= now { end = Calendar.current.date(byAdding: .day, value: 1, to: end)! }
+    return end.timeIntervalSince1970
+}
+
+// MARK: - Editable content (suggestions, quizzes, party songs)
+
+/// Loads a content JSON file. A copy in ~/Library/Application Support/Tube Timer/ overrides the built-in one.
+func loadContent(_ name: String) -> Any? {
+    let custom = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/Tube Timer/\(name).json")
+    for url in [custom, Bundle.main.url(forResource: name, withExtension: "json")].compactMap({ $0 }) {
+        if let data = try? Data(contentsOf: url), let obj = try? JSONSerialization.jsonObject(with: data) { return obj }
+    }
+    return nil
+}
+
+struct Content {
+    var slots: [[String: Any]] = []           // [{label, videos: [{id, title, channel}]}]
+    var channelHandles: [String] = []         // @handles of always-allowed channels (also feed suggestions)
+    var alwaysAllowedChannels: [String] = []  // lowercase channel names
+    var songs: [[String: Any]] = []           // [{id, start}]
+    var challenges: [[String: Any]] = []
+    var allowedVideoIDs: Set<String> = []
+
+    static func load() -> Content {
+        var c = Content()
+        if let s = loadContent("suggestions") as? [String: Any] {
+            c.slots = s["slots"] as? [[String: Any]] ?? []
+            c.channelHandles = s["channelHandles"] as? [String] ?? []
+            c.alwaysAllowedChannels = (s["alwaysAllowedChannels"] as? [String] ?? []).map { $0.lowercased() }
+        }
+        c.songs = (loadContent("party-songs") as? [String: Any])?["songs"] as? [[String: Any]] ?? []
+        c.challenges = loadContent("challenges") as? [[String: Any]] ?? []
+        let slotIDs = c.slots.flatMap { ($0["videos"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String } }
+        c.allowedVideoIDs = Set(slotIDs + c.songs.compactMap { $0["id"] as? String })
+        return c
+    }
+}
+let content = Content.load()
+
+let kUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+
+let allCategories = ["Education", "Science & Technology", "Music", "Howto & Style", "Pets & Animals", "Autos & Vehicles", "Travel & Events",
+                     "Film & Animation", "Gaming", "Entertainment", "People & Blogs", "Comedy", "Sports", "News & Politics"]
+
+/// Learning / creative / music words. A title or tag with one of these counts as learning (unless it's brain-rot, below).
+let learningTopics = [
+    // space
+    "space", "planet", "solar system", "galaxy", "galaxies", "universe", "star", "moon", "mars", "jupiter", "saturn", "venus",
+    "mercury", "neptune", "uranus", "pluto", "earth", "sun", "comet", "asteroid", "meteor", "black hole", "nebula", "rocket",
+    "nasa", "spacex", "astronaut", "telescope", "satellite", "orbit", "gravity", "rocketry", "starship", "particle",
+    // science + nature
+    "science", "scientific", "experiment", "physics", "chemistry", "biology", "geology", "volcano", "earthquake", "tornado",
+    "hurricane", "weather", "climate", "dinosaur", "fossil", "rock", "mineral", "crystal", "ocean", "animal", "wildlife",
+    "nature", "insect", "shark", "whale", "plant", "human body", "brain", "atom", "molecule", "electricity", "magnet",
+    "energy", "engine", "engineering", "invention", "machine", "robot", "coding", "programming", "technology",
+    "airplane", "jet", "aircraft", "helicopter", "car", "train", "submarine", "bridge",
+    // learning
+    "how it works", "how does", "how do", "why do", "why does", "what if", "what happens", "explained", "fact", "quiz",
+    "trivia", "riddle", "puzzle", "brain teaser", "learn", "learning", "lesson", "tutorial", "how to", "educational",
+    "math", "maths", "multiplication", "division", "fraction", "geometry", "algebra", "counting", "reading", "read aloud",
+    "story", "storytime", "book", "spelling", "phonics", "alphabet", "history", "geography", "map", "country", "countries", "flag",
+    // art + making things
+    "art", "drawing", "draw", "paint", "painting", "sketch", "doodle", "coloring", "colouring", "craft", "diy", "origami",
+    "paper airplane", "paper plane", "sculpture", "clay", "lego", "folding surprise",
+    // music
+    "music", "song", "piano", "guitar", "drum", "violin", "instrument", "sing", "singing", "dance", "dancing", "shuffle",
+    "phonk", "beat", "melody", "chord", "orchestra", "band", "cover", "remix",
+]
+/// A clear learning angle in the title. These win even over brain-rot words ("Minecraft Quiz" is fine).
+let strongLearningTopics = [
+    "quiz", "trivia", "learn", "learning", "lesson", "educational", "education", "science", "scientific", "experiment",
+    "math", "maths", "explained", "how it works", "how does", "why do", "why does", "fact", "tutorial", "history",
+    "geography", "physics", "chemistry", "biology", "geology", "engineering", "spelling", "phonics", "multiplication",
+    "fraction", "geometry", "algebra", "can you name", "test your", "guess the", "how to draw", "documentary",
+]
+/// Passive "brain-rot" signals. These count as fun time even if a learning word shows up too.
+let junkTopics = [
+    "minecraft", "roblox", "fortnite", "among us", "skibidi", "sigma", "rizz", "gyatt", "ohio", "fanum", "brainrot",
+    "brain rot", "prank", "pranked", "gone wrong", "secret room", "secret base", "hide and seek", "last to leave",
+    "24 hours", "100 days", "noob", "hacker", "pro vs", "poor vs rich", "rich vs poor", "$1 vs", "millionaire", "mukbang",
+    "reaction", "reacts", "try not to laugh", "funny moments", "troll", "trolling", "squid game", "build challenge",
+    "seconds vs", "minute vs", "$10,000", "$100,000", "$1,000,000", "wins $",
+]
+
+/// True if any term appears in `text` as a whole word/phrase (plural "s"/"es" allowed). Terms with symbols use plain contains.
+func matchesAny(_ text: String, _ terms: [String]) -> Bool {
+    let lower = text.lowercased()
+    return terms.contains { t in
+        guard !t.isEmpty else { return false }
+        if t.allSatisfy({ $0.isLetter || $0.isNumber || $0 == " " }) {
+            let p = "\\b" + NSRegularExpression.escapedPattern(for: t) + "(?:s|es)?\\b"
+            return lower.range(of: p, options: .regularExpression) != nil
+        }
+        return lower.contains(t)
+    }
+}
+
+// MARK: - Helpers
+
+struct Browser { let bundleID: String; let name: String; let safari: Bool }
+
+let knownBrowsers = [
+    Browser(bundleID: "com.google.Chrome", name: "Google Chrome", safari: false),
+    Browser(bundleID: "com.brave.Browser", name: "Brave", safari: false),
+    Browser(bundleID: "com.microsoft.edgemac", name: "Microsoft Edge", safari: false),
+    Browser(bundleID: "company.thebrowser.Browser", name: "Arc", safari: false),
+    Browser(bundleID: "com.apple.Safari", name: "Safari", safari: true),
+]
+
+/// Runs AppleScript in-process so macOS attributes the Automation permission to this app.
+func runScript(_ src: String) -> (out: String?, err: Int?) {
+    var err: NSDictionary?
+    let out = NSAppleScript(source: src)?.executeAndReturnError(&err)
+    if let err = err { return (nil, err[NSAppleScript.errorNumber] as? Int ?? -1) }
+    return (out?.stringValue, nil)
+}
+
+func isYouTube(_ url: String) -> Bool { url.contains("youtube.com") || url.contains("youtu.be") }
+
+func firstMatch(_ pattern: String, _ s: String) -> String? {
+    guard let re = try? NSRegularExpression(pattern: pattern),
+          let m = re.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)), m.numberOfRanges > 1,
+          let r = Range(m.range(at: 1), in: s) else { return nil }
+    return String(s[r])
+}
+
+func videoID(_ url: String) -> String? {
+    guard isYouTube(url) else { return nil }
+    return firstMatch(#"(?:[?&]v=|/shorts/|youtu\.be/|/live/|/embed/)([A-Za-z0-9_-]{11})"#, url)
+}
+
+func unescapeJSON(_ s: String) -> String {
+    (try? JSONSerialization.jsonObject(with: Data("\"\(s)\"".utf8), options: .fragmentsAllowed)) as? String ?? s
+}
+
+func fetchPage(_ url: String, _ done: @escaping (String) -> Void) {
+    var req = URLRequest(url: URL(string: url)!, timeoutInterval: 15)
+    req.setValue(kUA, forHTTPHeaderField: "User-Agent")
+    req.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+    req.setValue("CONSENT=YES+1", forHTTPHeaderField: "Cookie")
+    URLSession.shared.dataTask(with: req) { data, _, _ in
+        let s = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        DispatchQueue.main.async { done(s) }
+    }.resume()
+}
+
+// MARK: - Optional Claude AI judge (used only when the parent adds an Anthropic API key)
+
+let aiRules = """
+You screen YouTube videos for a parent. Their kid is in elementary/middle school. Classify one video.
+
+The parent's goals, in their words: let him be creative, have fun, search and look stuff up. Be open and liberal with \
+anything about space, science, earth, geology, math, reading, learning, quizzes, arts, crafts, drawing, paper airplanes, \
+creativity, piano, instruments, and really any music (including phonk and dance/shuffle songs). Cut out only two things: \
+videos that are inappropriate for his age, and purely passive, flashy entertainment with no value ("brain-rot").
+
+Verdicts:
+- "learning": real learning or creative value, even if the delivery is entertaining or YouTube files it under \
+Entertainment. Examples: a solar-system quiz, Solar Smash planet videos, "What If" science, Mark Rober, how-to-draw, \
+origami, paper airplanes, science experiments, engineering, nature/animals, history, any song or music video, piano covers.
+- "fun": purely passive, flashy entertainment with no real value. Examples: Brent Rivera / Ben Azelart / Cash & Nico / \
+Ben and Cam style vlogs and challenges, Minecraft or Roblox roleplay and skits ("secret room", "noob vs pro", "poor vs \
+rich", "100 days as..."), pranks, "24 hours in...", reaction videos, meme/brain-rot compilations. The kid gets a small \
+daily allowance of these.
+- "blocked": inappropriate for a young kid: romance/kissing/crush/dating gossip, sexual content, graphic violence or gore, \
+horror and jumpscares, strong language, dangerous stunts kids might copy.
+
+Be very relaxed on the learning side: if there is ANY learning, quiz, trivia, educational, or creative angle, choose \
+"learning", even if it's about Minecraft or games. Only pure no-value brain-rot is "fun". Give a short, kid-friendly reason (under 15 words).
+"""
+
+/// Asks Claude to classify a video. Calls back on the main thread with nil if anything goes wrong.
+func aiClassify(_ v: VideoInfo, key: String, done: @escaping (VideoKind?, String) -> Void) {
+    let video = """
+    Title: \(v.title)
+    Channel: \(v.channel)
+    YouTube category: \(v.category)
+    Tags: \(v.tags.prefix(400))
+    Description: \(v.description)
+    """
+    let body: [String: Any] = [
+        "model": "claude-opus-5-5",
+        "max_tokens": 2048,
+        "fallbacks": "default",
+        "system": aiRules,
+        "messages": [["role": "user", "content": video]],
+        "output_config": [
+            "effort": "low",
+            "format": [
+                "type": "json_schema",
+                "schema": [
+                    "type": "object",
+                    "properties": [
+                        "verdict": ["type": "string", "enum": ["learning", "fun", "blocked"]] as [String: Any],
+                        "reason": ["type": "string"],
+                    ],
+                    "required": ["verdict", "reason"],
+                    "additionalProperties": false,
+                ] as [String: Any],
+            ] as [String: Any],
+        ] as [String: Any],
+    ]
+    var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!, timeoutInterval: 30)
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "content-type")
+    req.setValue(key, forHTTPHeaderField: "x-api-key")
+    req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+    req.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+    URLSession.shared.dataTask(with: req) { data, _, _ in
+        var kind: VideoKind?, reason = ""
+        if let data = data, let resp = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           resp["stop_reason"] as? String != "refusal",
+           let content = resp["content"] as? [[String: Any]],
+           let text = content.first(where: { $0["type"] as? String == "text" })?["text"] as? String,
+           let out = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] {
+            reason = out["reason"] as? String ?? ""
+            switch out["verdict"] as? String {
+            case "learning": kind = .learning
+            case "fun": kind = .fun
+            case "blocked": kind = .blocked
+            default: break
+            }
+        }
+        DispatchQueue.main.async { done(kind, reason) }
+    }.resume()
+}
+
+func fmt(_ secs: Double) -> String {
+    let s = Int(max(0, secs.rounded())), h = s / 3600, m = (s % 3600) / 60, x = s % 60
+    if h > 0 { return "\(h)h \(m)m" }
+    return m >= 10 ? "\(m)m" : "\(m)m \(x)s"
+}
+
+/// Countdown style: "23:41" or "1:02:03".
+func clockStr(_ secs: Double) -> String {
+    let s = Int(max(0, secs.rounded())), h = s / 3600, m = (s % 3600) / 60, x = s % 60
+    return h > 0 ? String(format: "%d:%02d:%02d", h, m, x) : String(format: "%d:%02d", m, x)
+}
+
+let speaker = NSSpeechSynthesizer()
+func speak(_ text: String) { speaker.stopSpeaking(); speaker.startSpeaking(text) }
+
+// MARK: - Open at login (LaunchAgent that just opens the app)
+
+let loginLabel = "com.tubetimer.app"
+let loginPlist = NSHomeDirectory() + "/Library/LaunchAgents/\(loginLabel).plist"
+var opensAtLogin: Bool { FileManager.default.fileExists(atPath: loginPlist) }
+func setOpenAtLogin(_ on: Bool) {
+    if on {
+        try? FileManager.default.createDirectory(atPath: (loginPlist as NSString).deletingLastPathComponent,
+                                                 withIntermediateDirectories: true)
+        let plist: NSDictionary = [
+            "Label": loginLabel,
+            "ProgramArguments": ["/usr/bin/open", "-g", "-a", Bundle.main.bundlePath, "--args", "--login"],
+            "RunAtLoad": true,
+        ]
+        plist.write(toFile: loginPlist, atomically: true)
+    } else {
+        try? FileManager.default.removeItem(atPath: loginPlist)
+    }
+}
+
+// MARK: - Suggested learning videos
+
+struct Suggestion { let id, title, channel: String }
+
+final class Suggestions {
+    static let shared = Suggestions()
+    private(set) var pool: [Suggestion] = []
+    private(set) var channelNames: Set<String> = []  // lowercased, always allowed
+
+    func refresh() {
+        var fresh: [Suggestion] = [], names = Set<String>(), left = content.channelHandles.count
+        for handle in content.channelHandles {
+            fetchPage("https://www.youtube.com/@\(handle)/videos") { [weak self] html in
+                let (name, vids) = Self.parse(html)
+                if let name = name { names.insert(name.lowercased()) }
+                fresh += vids.prefix(20).map { Suggestion(id: $0.0, title: $0.1, channel: name ?? handle) }
+                left -= 1
+                if left == 0, let self = self {
+                    if !fresh.isEmpty { self.pool = fresh }
+                    self.channelNames.formUnion(names)
+                }
+            }
+        }
+    }
+
+    /// Pulls (channel name, [(videoId, title)]) out of a channel's /videos page.
+    static func parse(_ html: String) -> (String?, [(String, String)]) {
+        guard let a = html.range(of: "var ytInitialData = "),
+              let b = html.range(of: ";</script>", range: a.upperBound..<html.endIndex),
+              let obj = try? JSONSerialization.jsonObject(with: Data(html[a.upperBound..<b.lowerBound].utf8)) else { return (nil, []) }
+        var vids: [(String, String)] = []
+        func walk(_ o: Any) {
+            if let d = o as? [String: Any] {
+                if let l = d["lockupViewModel"] as? [String: Any],
+                   l["contentType"] as? String == "LOCKUP_CONTENT_TYPE_VIDEO", let id = l["contentId"] as? String,
+                   let meta = (l["metadata"] as? [String: Any])?["lockupMetadataViewModel"] as? [String: Any],
+                   let title = (meta["title"] as? [String: Any])?["content"] as? String {
+                    vids.append((id, title))
+                }
+                d.values.forEach(walk)
+            } else if let arr = o as? [Any] {
+                arr.forEach(walk)
+            }
+        }
+        walk(obj)
+        let name = (((obj as? [String: Any])?["metadata"] as? [String: Any])?["channelMetadataRenderer"] as? [String: Any])?["title"] as? String
+        return (name, vids)
+    }
+}
+
+// MARK: - Limiter (rules + state)
+
+struct VideoInfo {
+    let id, title, channel, category: String
+    var tags = ""
+    var description = ""
+    var familySafe = true
+}
+enum VideoKind { case learning, fun, blocked }
+
+final class Limiter: ObservableObject {
+    static let shared = Limiter()
+    private let d = UserDefaults.standard
+
+    @Published var enabled: Bool { didSet { d.set(enabled, forKey: "enabled"); if !enabled { party.hide(); nope.hide() }; changed() } }
+    @Published var dailyMin: Int { didSet { d.set(dailyMin, forKey: "dailyMin"); changed() } }
+    @Published var sessionMin: Int { didSet { d.set(sessionMin, forKey: "sessionMin"); changed() } }
+    @Published var lockoutMin: Int { didSet { d.set(lockoutMin, forKey: "lockoutMin"); changed() } }
+    @Published var filterOn: Bool { didSet { d.set(filterOn, forKey: "filterOn") } }
+    @Published var allowedCats: [String] { didSet { d.set(allowedCats, forKey: "allowedCats") } }
+    @Published var allowChannels: String { didSet { d.set(allowChannels, forKey: "allowChannels") } }
+    @Published var blockChannels: String { didSet { d.set(blockChannels, forKey: "blockChannels") } }
+    @Published var allowTopics: String { didSet { d.set(allowTopics, forKey: "allowTopics") } }
+    @Published var blockTopics: String { didSet { d.set(blockTopics, forKey: "blockTopics") } }
+    @Published var apiKey: String { didSet { d.set(apiKey, forKey: "apiKey") } }
+    @Published var onYouTube = false          // a YouTube tab is in front (timer box shows)
+    @Published var playDetection = "basic"    // "precise" when Chrome lets us check the video itself
+    var aiVerdicts: [String: String]          // video ID -> learning / fun / blocked (from Claude)
+    var aiReasons: [String: String] = [:]
+    @Published var earnedToday: Int            // video + quiz challenges passed today (max 2)
+    @Published var earnLog: [String]           // his "explain it" answers, for the parent to read
+    @Published var funMin: Int { didSet { d.set(funMin, forKey: "funMin"); changed() } }
+    // Saturday + Sunday use these instead.
+    @Published var weekendFunMin: Int { didSet { d.set(weekendFunMin, forKey: "weekendFunMin"); changed() } }
+    @Published var weekendDailyMin: Int { didSet { d.set(weekendDailyMin, forKey: "weekendDailyMin"); changed() } }
+    @Published var weekendSessionMin: Int { didSet { d.set(weekendSessionMin, forKey: "weekendSessionMin"); changed() } }
+    var funMinToday: Int { isWeekend ? weekendFunMin : funMin }
+    var dailyMinToday: Int { isWeekend ? weekendDailyMin : dailyMin }
+    var sessionMinToday: Int { isWeekend ? weekendSessionMin : sessionMin }
+    @Published var pin: String { didSet { d.set(pin, forKey: "pin") } }
+    @Published var funSec: Double
+    @Published var watchingFun = false
+    var approvedFun: Set<String>   // entertainment videos he chose to spend fun time on today
+    var funWarned: Bool
+    var lastTickAt = Date().timeIntervalSince1970
+    private var pendingFun: (id: String, url: String, browser: String)?
+
+    @Published var dailySec: Double
+    @Published var sessionSec: Double
+    @Published var lockedUntil: Double
+    @Published var lockReason: String
+    @Published var watching = false
+    @Published var needsPermission: [String] = []   // browser names macOS hasn't allowed yet
+    @Published var recentBlocks: [String] = []
+    var lockIsDaily: Bool
+    var dailyBonus: Double
+    var sessionBonus: Double
+    var lastWatch: Double
+    var day: String
+    var warned: Bool
+    var partyUntil: Double = 0
+    var partyIsPreview = false
+    var nopeIsPreview = false
+    var earnIsPreview = false
+    var nopeBrowser: String?
+    private var verdicts: [String: VideoInfo] = [:]
+    private var pending: Set<String> = []
+    private var failedAt: [String: Double] = [:]
+    private var lastTick = Date().timeIntervalSince1970
+    var onChange: (() -> Void)?
+
+    init() {
+        d.register(defaults: kScheduleDefaults)
+        d.register(defaults: [
+            "enabled": true, "dailyMin": 60, "sessionMin": 30, "lockoutMin": 30,
+            "filterOn": true,
+            "allowedCats": ["Education", "Science & Technology", "Music", "Howto & Style", "Pets & Animals",
+                            "Autos & Vehicles", "Travel & Events"],
+            "allowChannels": "", "blockChannels": "",
+            "funMin": 20,
+            "weekendFunMin": 120, "weekendDailyMin": 120, "weekendSessionMin": 60,
+            "allowTopics": "paper airplane, paper plane, paper jet, origami, how to draw, drawing, coloring, colouring, folding surprise, arts and crafts, craft",
+        ])
+        allowTopics = d.string(forKey: "allowTopics") ?? ""
+        blockTopics = d.string(forKey: "blockTopics")
+            ?? "kiss, kissed, kissing, crush, dating, girlfriend, boyfriend, sexy, twerk, nsfw, 18+, horror, jumpscare, gore"
+        apiKey = d.string(forKey: "apiKey") ?? ""
+        aiVerdicts = d.dictionary(forKey: "aiVerdicts") as? [String: String] ?? [:]
+        earnedToday = d.integer(forKey: "earnedToday")
+        earnLog = d.stringArray(forKey: "earnLog") ?? []
+        funMin = d.integer(forKey: "funMin")
+        weekendFunMin = d.integer(forKey: "weekendFunMin")
+        weekendDailyMin = d.integer(forKey: "weekendDailyMin")
+        weekendSessionMin = d.integer(forKey: "weekendSessionMin")
+        pin = d.string(forKey: "pin") ?? ""
+        funSec = d.double(forKey: "funSec")
+        approvedFun = Set(d.stringArray(forKey: "approvedFun") ?? [])
+        funWarned = d.bool(forKey: "funWarned")
+        enabled = d.bool(forKey: "enabled")
+        dailyMin = d.integer(forKey: "dailyMin")
+        sessionMin = d.integer(forKey: "sessionMin")
+        lockoutMin = d.integer(forKey: "lockoutMin")
+        filterOn = d.bool(forKey: "filterOn")
+        var cats = d.stringArray(forKey: "allowedCats") ?? []
+        if !d.bool(forKey: "relaxedFilterV1") {  // one-time: be more relaxed about learning-ish categories
+            for c in ["Howto & Style", "Pets & Animals", "Autos & Vehicles", "Travel & Events"] where !cats.contains(c) {
+                cats.append(c)
+            }
+            d.set(cats, forKey: "allowedCats")
+            d.set(true, forKey: "relaxedFilterV1")
+        }
+        allowedCats = cats
+        allowChannels = d.string(forKey: "allowChannels") ?? ""
+        var blocked = d.string(forKey: "blockChannels") ?? ""
+        if !d.bool(forKey: "benAndCamFunV1") {  // one-time: Ben and Cam moves from "blocked" to fun time
+            blocked = blocked.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { $0.lowercased() != "ben and cam" }.joined(separator: ", ")
+            d.set(blocked, forKey: "blockChannels")
+            d.set(true, forKey: "benAndCamFunV1")
+        }
+        blockChannels = blocked
+        dailySec = d.double(forKey: "dailySec")
+        sessionSec = d.double(forKey: "sessionSec")
+        lockedUntil = d.double(forKey: "lockedUntil")
+        lockReason = d.string(forKey: "lockReason") ?? ""
+        lockIsDaily = d.bool(forKey: "lockIsDaily")
+        dailyBonus = d.double(forKey: "dailyBonus")
+        sessionBonus = d.double(forKey: "sessionBonus")
+        lastWatch = d.double(forKey: "lastWatch")
+        day = d.string(forKey: "day") ?? ""
+        warned = d.bool(forKey: "warned")
+    }
+
+    var now: Double { Date().timeIntervalSince1970 }
+    var isLocked: Bool { now < lockedUntil }
+    var dailyLimit: Double { Double(dailyMinToday * 60) + dailyBonus }
+    var sessionLimit: Double { Double(sessionMinToday * 60) + sessionBonus }
+    var timeLeft: Double { max(0, min(dailyLimit - dailySec, sessionLimit - sessionSec)) }
+    var funLimit: Double { Double((funMinToday + earnedToday * kEarnMinutes) * 60) }
+    var funLeft: Double { max(0, funLimit - funSec) }
+    var canEarn: Bool { earnedToday < kMaxEarnsPerDay }
+    /// Smooth per-second countdowns for the on-screen timer (state itself updates every 5 s).
+    var liveTimeLeft: Double { max(0, timeLeft - (watching ? now - lastTickAt : 0)) }
+    var liveFunLeft: Double { max(0, funLeft - (watchingFun ? now - lastTickAt : 0)) }
+
+    var menuTitle: String {
+        if !enabled { return "off" }
+        if isLocked { return "🔒 " + fmt(lockedUntil - now) }
+        return fmt(timeLeft)
+    }
+
+    func start() {
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.tick() }
+        tick()
+    }
+
+    func tick() {
+        let t = now
+        let dt = min(max(t - lastTick, 0), 15)  // cap so sleep/wake doesn't count as watching
+        lastTick = t
+        lastTickAt = t
+        rollDay()
+        defer { save(); changed() }
+        watchingFun = false
+
+        if party.isShowing && (t >= partyUntil || (!partyIsPreview && !isLocked)) { party.hide() }
+        guard enabled else { watching = false; onYouTube = false; return }
+        let running = runningBrowsers()
+
+        // YouTube is off overnight (default 9 PM–6 AM), no matter what.
+        if inYouTubeOffHours {
+            let end = offHoursEnd()
+            if lockedUntil < end {
+                lockedUntil = end; lockIsDaily = false
+                lockReason = "YouTube is off from \(offHoursText). Good night! 🌙"
+            }
+        }
+
+        if isLocked {
+            watching = false; onYouTube = false
+            if closeTabs(running, matching: nil) > 0 && !party.isShowing {
+                partyUntil = min(lockedUntil, t + kReshowSec)
+                showParty()
+            }
+            return
+        }
+        if !lockReason.isEmpty { lockReason = ""; lockIsDaily = false }  // lock just expired
+
+        var ytTabs: [(Browser, String)] = []
+        for b in running { if let u = activeURL(b), isYouTube(u) { ytTabs.append((b, u)) } }
+        onYouTube = !ytTabs.isEmpty
+        if filterOn && !nope.isShowing && !earn.isShowing {
+            for (b, u) in ytTabs { if let id = videoID(u) { checkVideo(id, url: u, in: b) } }
+        }
+        // Only count time while a video is actually playing (not paused, not just browsing).
+        var mediaActive: Bool?
+        let playingTabs = ytTabs.filter { (b, _) in
+            if let p = isPlaying(b) { playDetection = "precise"; return p }
+            playDetection = "basic"
+            if mediaActive == nil { mediaActive = browserMediaActive() }
+            return mediaActive!
+        }
+        watching = !playingTabs.isEmpty
+        guard watching, !nope.isShowing, !earn.isShowing else { return }
+        let funTab = filterOn ? playingTabs.first { videoID($0.1).map { approvedFun.contains($0) } ?? false } : nil
+        watchingFun = funTab != nil
+
+        if lastWatch > 0 && t - lastWatch > kGapSec { sessionSec = 0; sessionBonus = 0; warned = false }
+        lastWatch = t
+        sessionSec += dt
+        dailySec += dt
+
+        let dayLeft = dailyLimit - dailySec, sessLeft = sessionLimit - sessionSec
+        if dayLeft <= 0 {
+            lock(until: nextMidnight(), daily: true,
+                 reason: "You used all \(dailyMinToday) minutes of YouTube for today. See you tomorrow!")
+        } else if sessLeft <= 0 {
+            lock(until: t + Double(lockoutMin * 60), daily: false,
+                 reason: "That's \(sessionMinToday) minutes in a row. Take a \(lockoutMin) minute break!")
+        } else if min(dayLeft, sessLeft) <= kWarnSec && !warned {
+            warned = true
+            showWarning()
+        }
+
+        // Entertainment ("fun") time
+        guard let (fb, fu) = funTab, !isLocked, let fid = videoID(fu) else { return }
+        if !inFunWindow, let v = verdicts[fid] {      // 8:30 PM: fun time is over for today
+            watchingFun = false
+            blockVideo(v, in: fb, mode: "notnow")
+            return
+        }
+        funSec += dt
+        if funLeft <= 0, let v = verdicts[fid] {
+            watchingFun = false
+            blockVideo(v, in: fb, mode: "funover")
+        } else if funLeft <= kWarnSec && !funWarned {
+            funWarned = true
+            banner.show("🎉 1 minute of fun time left!")
+            speak("One minute of fun time left!")
+        }
+    }
+
+    func lock(until: Double, daily: Bool, reason: String) {
+        lockedUntil = until; lockIsDaily = daily; lockReason = reason
+        sessionSec = 0; sessionBonus = 0; warned = false
+        nope.hide()
+        _ = closeTabs(runningBrowsers(), matching: nil)
+        partyUntil = min(until, now + Double(lockoutMin * 60))
+        showParty()
+    }
+
+    func showParty(preview: Bool = false) {
+        party.hide()
+        let t = now
+        partyIsPreview = preview
+        if preview { partyUntil = t + 20 }
+        party.show(params: [
+            "until": preview ? t + 60 : lockedUntil,
+            "partyUntil": partyUntil,
+            "reason": preview ? "This is just a preview. It closes by itself in 20 seconds." : lockReason,
+            "daily": preview ? false : lockIsDaily,
+            "songs": content.songs.shuffled(),
+        ])
+    }
+
+    func showWarning() {
+        banner.show("⏰ Hey! You've got 1 minute left for YouTube!")
+        speak("Hey! You've got one minute left for YouTube.")
+    }
+
+    /// mode: "nope" (not allowed), "funover" (fun time used up) or "ask" (are you sure you want to use fun time?)
+    func showNope(_ v: VideoInfo, mode: String = "nope", preview: Bool = false) {
+        party.hide(); nope.hide()
+        nopeIsPreview = preview
+        let skin = d.integer(forKey: "skin") + 1
+        d.set(skin, forKey: "skin")
+        nope.show(params: ["mode": mode, "channel": v.channel, "category": v.category, "title": v.title, "skin": skin,
+                           "funLeft": funLeft, "funMin": Int(funLimit / 60),
+                           "canEarn": canEarn, "earnMinutes": kEarnMinutes,
+                           "slots": content.slots, "funWindow": funWindowText])
+        switch mode {
+        case "ask": speak("Hold up! That's an entertainment video. Are you sure you want to use your fun time?")
+        case "funover": speak("Ah ah ah! Your fun time is all used up for today!")
+        case "notnow": speak("Ah ah ah! Fun videos are only from \(timeText(kFunStart)) to \(timeText(kFunEnd)).")
+        default: speak("Ah ah ah! Ah ah ah! You didn't say the magic word!")
+        }
+    }
+
+    /// Opens the "earn fun time" screen: a learning video plays inside the app, then 5 questions.
+    func showEarn(preview: Bool = false) {
+        let all = content.challenges
+        guard canEarn || preview, !all.isEmpty else { return }
+        nope.hide(); party.hide(); earn.hide()
+        earnIsPreview = preview
+        // Rotate through the challenges; quitting halfway gives the same one next time.
+        let challenge = all[d.integer(forKey: "earnIndex") % all.count]
+        earn.show(params: ["challenge": challenge, "earnMinutes": kEarnMinutes, "used": earnedToday, "inWindow": inFunWindow,
+                           "funWindow": funWindowText])
+    }
+
+    /// He watched the video and passed the questions.
+    func completeEarn(explanation: String) {
+        guard !earnIsPreview else { return }
+        let all = content.challenges
+        let i = d.integer(forKey: "earnIndex")
+        let title = all.isEmpty ? "" : all[i % all.count]["title"] as? String ?? ""
+        d.set(i + 1, forKey: "earnIndex")
+        earnedToday += 1
+        funWarned = false
+        let f = DateFormatter(); f.dateFormat = "MMM d, h:mm a"
+        earnLog.insert("\(f.string(from: Date())) · \(title)\n“\(explanation)”", at: 0)
+        if earnLog.count > 20 { earnLog.removeLast() }
+        save(); changed()
+        speak("You earned \(kEarnMinutes) more minutes of fun time!")
+    }
+
+    /// He said "yes, use my fun time" on the ask screen.
+    func approveFun() {
+        nope.hide()
+        guard !nopeIsPreview, let p = pendingFun, let url = URL(string: p.url) else { return }
+        pendingFun = nil
+        approvedFun.insert(p.id)
+        nopeBrowser = p.browser
+        save()
+        openInBrowser(url)
+    }
+
+    /// Called when the kid picks a suggestion (or a search) on the "Ah ah ah" screen.
+    func pickFromNope(_ url: URL) {
+        nope.hide()
+        guard !nopeIsPreview else { return }
+        openInBrowser(url)
+    }
+
+    private func openInBrowser(_ url: URL) {
+        if let id = nopeBrowser, let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
+            NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Unlocks and guarantees at least 10 more minutes in both the sitting and the day.
+    func addExtra() {
+        lockedUntil = 0; lockReason = ""; lockIsDaily = false; warned = false
+        if dailySec + kExtraSec > dailyLimit { dailyBonus += dailySec + kExtraSec - dailyLimit }
+        if sessionSec + kExtraSec > sessionLimit { sessionBonus += sessionSec + kExtraSec - sessionLimit }
+        party.hide()
+        save(); changed()
+    }
+
+    func resetToday() {
+        dailySec = 0; sessionSec = 0; dailyBonus = 0; sessionBonus = 0
+        funSec = 0; approvedFun = []; funWarned = false; earnedToday = 0
+        lockedUntil = 0; lockReason = ""; lockIsDaily = false; warned = false
+        party.hide(); nope.hide()
+        save(); changed()
+    }
+
+    // MARK: video filter
+
+    private func list(_ s: String) -> [String] {
+        s.lowercased().split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    /// Hard rules that always win (allow/block lists, family-safe flag). nil = rules don't decide.
+    func ruleKind(_ v: VideoInfo) -> VideoKind? {
+        let ch = v.channel.lowercased()
+        if content.allowedVideoIDs.contains(v.id) { return .learning }
+        if list(blockChannels).contains(where: { ch.contains($0) }) { return .blocked }
+        // Title only: creators stuff tags with other people's names ("ben azelart girlfriend"), which isn't the video.
+        if !v.familySafe || matchesAny(v.title, list(blockTopics)) { return .blocked }
+        if list(allowChannels).contains(where: { ch.contains($0) }) || Suggestions.shared.channelNames.contains(ch)
+            || content.alwaysAllowedChannels.contains(ch) { return .learning }
+        return nil
+    }
+
+    func kind(_ v: VideoInfo) -> VideoKind {
+        if let k = ruleKind(v) { return k }
+        switch aiVerdicts[v.id] {
+        case "learning": return .learning
+        case "fun": return .fun
+        case "blocked": return .blocked
+        default: break
+        }
+        // Built-in word rules (relaxed): learning-ish categories, then a clear learning angle in the title,
+        // then brain-rot words, then any learning/creative/music topic.
+        if allowedCats.contains(v.category) { return .learning }
+        if matchesAny(v.title, strongLearningTopics) { return .learning }
+        let text = v.title + " | " + v.tags
+        if matchesAny(v.title + " | " + v.channel, junkTopics) { return .fun }
+        if matchesAny(text, learningTopics + list(allowTopics)) { return .learning }
+        return .fun
+    }
+
+    private func handle(_ v: VideoInfo, url: String, in b: Browser) {
+        switch kind(v) {
+        case .learning: return
+        case .blocked: blockVideo(v, in: b, mode: "nope")
+        case .fun:
+            if !inFunWindow { blockVideo(v, in: b, mode: "notnow") }
+            else if funLeft <= 0 { blockVideo(v, in: b, mode: "funover") }
+            else if !approvedFun.contains(v.id) {
+                _ = closeTabs(runningBrowsers(), matching: v.id)
+                pendingFun = (v.id, url, b.bundleID)
+                nopeBrowser = b.bundleID
+                showNope(v, mode: "ask")
+            }
+        }
+    }
+
+    private func checkVideo(_ id: String, url: String, in b: Browser) {
+        if content.allowedVideoIDs.contains(id) { return }
+        if let v = verdicts[id] {
+            handle(v, url: url, in: b)
+            return
+        }
+        guard !pending.contains(id), now - (failedAt[id] ?? 0) > 60 else { return }
+        pending.insert(id)
+        fetchPage("https://www.youtube.com/watch?v=\(id)") { [weak self] html in
+            guard let self = self else { return }
+            self.pending.remove(id)
+            let str = #""((?:[^"\\]|\\.)*)""#
+            guard let category = firstMatch(#""category":"# + str, html).map(unescapeJSON),
+                  let channel = firstMatch(#""ownerChannelName":"# + str, html).map(unescapeJSON) else {
+                self.failedAt[id] = self.now  // couldn't tell - let it play, retry in a minute
+                return
+            }
+            let title = firstMatch(#""videoDetails":\{"videoId":"[^"]+","title":"# + str, html).map(unescapeJSON) ?? ""
+            var v = VideoInfo(id: id, title: title, channel: channel, category: category)
+            if let kw = firstMatch(#""keywords":\[([^\]]*)\]"#, html),
+               let arr = try? JSONSerialization.jsonObject(with: Data("[\(kw)]".utf8)) as? [String] {
+                v.tags = arr.joined(separator: ", ")
+            }
+            v.description = String((firstMatch(#""shortDescription":"# + str, html).map(unescapeJSON) ?? "").prefix(600))
+            v.familySafe = firstMatch(#""isFamilySafe":(true|false)"#, html) != "false"
+            let decide = {
+                self.verdicts[id] = v
+                if self.enabled && self.filterOn && !self.isLocked && !nope.isShowing && !party.isShowing {
+                    self.handle(v, url: url, in: b)
+                }
+            }
+            // Ask Claude only when the simple rules can't settle it (saves money, and their answer is final anyway).
+            if !self.apiKey.isEmpty && self.aiVerdicts[id] == nil && self.ruleKind(v) == nil {
+                aiClassify(v, key: self.apiKey) { kind, reason in
+                    if let kind = kind {
+                        self.aiVerdicts[id] = kind == .learning ? "learning" : kind == .fun ? "fun" : "blocked"
+                        self.aiReasons[id] = reason
+                        self.d.set(self.aiVerdicts, forKey: "aiVerdicts")
+                    }
+                    decide()
+                }
+            } else {
+                decide()
+            }
+        }
+    }
+
+    private func blockVideo(_ v: VideoInfo, in b: Browser, mode: String) {
+        _ = closeTabs(runningBrowsers(), matching: v.id)
+        guard !nope.isShowing && !party.isShowing else { return }
+        let f = DateFormatter(); f.dateFormat = "h:mm a"
+        let why = aiReasons[v.id].map { "  🤖 " + $0 } ?? ""
+        recentBlocks.insert("\(f.string(from: Date()))  \(v.channel) (\(v.category))\(v.title.isEmpty ? "" : " – " + v.title)\(why)", at: 0)
+        if recentBlocks.count > 8 { recentBlocks.removeLast() }
+        nopeBrowser = b.bundleID
+        showNope(v, mode: mode)
+    }
+
+    // MARK: day / persistence
+
+    private func rollDay() {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        let today = f.string(from: Date())
+        guard day != today else { return }
+        day = today; dailySec = 0; dailyBonus = 0
+        funSec = 0; approvedFun = []; funWarned = false; earnedToday = 0
+        if lockIsDaily { lockedUntil = 0; lockReason = ""; lockIsDaily = false }
+    }
+
+    private func nextMidnight() -> Double {
+        let cal = Calendar.current
+        return cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: Date()))!.timeIntervalSince1970
+    }
+
+    private func save() {
+        let vals: [String: Any] = [
+            "dailySec": dailySec, "sessionSec": sessionSec, "lockedUntil": lockedUntil, "lockReason": lockReason,
+            "lockIsDaily": lockIsDaily, "dailyBonus": dailyBonus, "sessionBonus": sessionBonus,
+            "lastWatch": lastWatch, "day": day, "warned": warned,
+            "funSec": funSec, "approvedFun": Array(approvedFun), "funWarned": funWarned,
+            "earnedToday": earnedToday, "earnLog": earnLog,
+        ]
+        vals.forEach { d.set($1, forKey: $0) }
+    }
+
+    private func changed() { onChange?() }
+
+    // MARK: browser access
+
+    private func runningBrowsers() -> [Browser] {
+        let ids = Set(NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier })
+        return knownBrowsers.filter { ids.contains($0.bundleID) }
+    }
+
+    private func track(_ b: Browser, _ err: Int?) {
+        let denied = err == -1743
+        if denied && !needsPermission.contains(b.name) { needsPermission.append(b.name) }
+        if !denied && err == nil { needsPermission.removeAll { $0 == b.name } }
+    }
+
+    private func activeURL(_ b: Browser) -> String? {
+        let tab = b.safari ? "current tab" : "active tab"
+        let r = runScript("""
+        tell application id "\(b.bundleID)"
+          try
+            if (count of windows) is 0 then return ""
+            return URL of \(tab) of front window
+          end try
+          return ""
+        end tell
+        """)
+        track(b, r.err)
+        return r.out
+    }
+
+    /// Asks the browser whether a video on its front tab is playing. nil = can't tell (Chrome/Safari
+    /// "Allow JavaScript from Apple Events" is off), so the caller falls back to `browserMediaActive()`.
+    private func isPlaying(_ b: Browser) -> Bool? {
+        let js = "(function(){return Array.from(document.querySelectorAll('video')).some(function(v){return !v.paused && !v.ended && v.readyState > 2})?'1':'0'})()"
+        let src = b.safari
+            ? "tell application id \"\(b.bundleID)\" to do JavaScript \"\(js)\" in current tab of front window"
+            : "tell application id \"\(b.bundleID)\" to execute active tab of front window javascript \"\(js)\""
+        switch runScript(src).out {
+        case "1": return true
+        case "0": return false
+        default: return nil
+        }
+    }
+
+    /// Fallback: browsers tell macOS "video/audio is playing" (a power assertion) while media plays, and drop it when paused.
+    private func browserMediaActive() -> Bool {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
+        p.arguments = ["-g", "assertions"]
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        guard (try? p.run()) != nil else { return true }
+        let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        p.waitUntilExit()
+        let owners = ["Chrome", "Safari", "WebKit", "Brave", "Edge", "Arc"]
+        return out.split(separator: "\n").contains { line in
+            line.contains("pid ") && owners.contains { line.contains($0) }
+                && (line.contains("PreventUserIdleDisplaySleep") || line.localizedCaseInsensitiveContains("audio")
+                    || line.localizedCaseInsensitiveContains("video"))
+        }
+    }
+
+    /// Closes YouTube tabs (all of them, or only ones for one video ID). Returns how many closed.
+    private func closeTabs(_ browsers: [Browser], matching id: String?) -> Int {
+        let cond = id.map { "u contains \"\($0)\"" } ?? "u contains \"youtube.com\" or u contains \"youtu.be\""
+        var closed = 0
+        for b in browsers {
+            let r = runScript("""
+            tell application id "\(b.bundleID)"
+              set n to 0
+              repeat with w in windows
+                try
+                  repeat with i from (count of tabs of w) to 1 by -1
+                    try
+                      set u to (URL of tab i of w) as text
+                      if \(cond) then
+                        close tab i of w
+                        set n to n + 1
+                      end if
+                    end try
+                  end repeat
+                end try
+              end repeat
+              return n as text
+            end tell
+            """)
+            track(b, r.err)
+            closed += Int(r.out ?? "") ?? 0
+        }
+        return closed
+    }
+}
+
+// MARK: - Full-screen overlays (party + "ah ah ah")
+
+final class KeyWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
+final class Overlay: NSObject, WKScriptMessageHandler {
+    let page: String
+    var onMessage: ((String, String) -> Void)?
+    private var windows: [NSWindow] = []
+    var isShowing: Bool { !windows.isEmpty }
+
+    init(page: String) { self.page = page }
+
+    func show(params: [String: Any]) {
+        guard windows.isEmpty, let url = Bundle.main.url(forResource: page, withExtension: "html"),
+              let html = try? String(contentsOf: url) else { return }
+        for (i, screen) in NSScreen.screens.enumerated() {
+            var p = params
+            p["primary"] = i == 0
+            let json = String(data: try! JSONSerialization.data(withJSONObject: p), encoding: .utf8)!
+            let cfg = WKWebViewConfiguration()
+            cfg.mediaTypesRequiringUserActionForPlayback = []
+            cfg.userContentController.add(self, name: "msg")
+            cfg.userContentController.addUserScript(WKUserScript(source: "window.PARAMS=\(json);",
+                                                                 injectionTime: .atDocumentStart, forMainFrameOnly: true))
+            let web = WKWebView(frame: screen.frame, configuration: cfg)
+            // An https base URL (instead of file://) lets the embedded YouTube player work.
+            web.loadHTMLString(html, baseURL: URL(string: "https://youtubelimit.local/"))
+
+            let w = KeyWindow(contentRect: screen.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+            w.level = .screenSaver
+            w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+            w.isReleasedWhenClosed = false
+            w.contentView = web
+            w.setFrame(screen.frame, display: true)
+            w.makeKeyAndOrderFront(nil)
+            windows.append(w)
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        updateKiosk()
+    }
+
+    func hide() {
+        guard isShowing else { return }
+        for w in windows {
+            (w.contentView as? WKWebView)?.configuration.userContentController.removeScriptMessageHandler(forName: "msg")
+            w.contentView = nil
+            w.orderOut(nil)
+        }
+        windows = []
+        updateKiosk()
+    }
+
+    func userContentController(_ u: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any], let kind = body["kind"] as? String else { return }
+        onMessage?(kind, body["value"] as? String ?? "")
+    }
+}
+
+let party = Overlay(page: "party")
+let nope = Overlay(page: "nope")
+let earn = Overlay(page: "earn")
+
+/// While an overlay is up: hide Dock/menu bar and block Cmd-Tab so it can't be clicked away.
+func updateKiosk() {
+    let on = party.isShowing || nope.isShowing || earn.isShowing
+    NSApp.presentationOptions = on ? [.hideDock, .hideMenuBar, .disableProcessSwitching, .disableHideApplication, .disableAppleMenu] : []
+}
+
+// MARK: - "1 minute left" banner
+
+final class Banner {
+    private var window: NSWindow?
+
+    func show(_ text: String) {
+        window?.orderOut(nil)
+        guard let screen = NSScreen.main else { return }
+        let host = NSHostingView(rootView:
+            Text(text)
+                .font(.system(size: 30, weight: .heavy, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 36).padding(.vertical, 22)
+                .background(RoundedRectangle(cornerRadius: 22).fill(Color.orange))
+                .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.black, lineWidth: 4))
+                .padding(20))
+        let size = host.fittingSize, f = screen.visibleFrame
+        let w = NSWindow(contentRect: NSRect(x: f.midX - size.width / 2, y: f.maxY - size.height - 10, width: size.width, height: size.height),
+                         styleMask: .borderless, backing: .buffered, defer: false)
+        w.isOpaque = false
+        w.backgroundColor = .clear
+        w.level = .statusBar
+        w.ignoresMouseEvents = true
+        w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        w.isReleasedWhenClosed = false
+        w.contentView = host
+        w.orderFrontRegardless()
+        window = w
+        NSSound(named: "Glass")?.play()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self, weak w] in
+            guard let w = w, self?.window === w else { return }
+            w.orderOut(nil)
+            self?.window = nil
+        }
+    }
+}
+
+let banner = Banner()
+
+// MARK: - On-screen timer (shown while YouTube is open)
+
+struct HUDView: View {
+    @ObservedObject var m = Limiter.shared
+    @State private var tickNow = Date()
+    private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        let _ = tickNow
+        VStack(alignment: .leading, spacing: 4) {
+            Text("📺 YouTube  \(clockStr(m.liveTimeLeft)) left" + (m.watching ? "" : "  ⏸"))
+            if m.filterOn {
+                Text(inFunWindow ? "🎉 Fun time  \(clockStr(m.liveFunLeft)) left" : "🎉 Fun time  \(funWindowText)")
+                    .foregroundColor(m.watchingFun ? .yellow : .white.opacity(0.65))
+            }
+        }
+        .font(.system(size: 17, weight: .bold, design: .rounded).monospacedDigit())
+        .foregroundColor(.white)
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.78)))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(m.watchingFun ? Color.yellow : Color.orange, lineWidth: 3))
+        .padding(6)
+        .onReceive(clock) { tickNow = $0 }
+    }
+}
+
+final class HUD {
+    private var window: NSWindow?
+
+    func setVisible(_ on: Bool) {
+        if !on { window?.orderOut(nil); window = nil; return }
+        guard window == nil, let screen = NSScreen.main else { return }
+        let host = NSHostingView(rootView: HUDView())
+        let size = NSSize(width: 290, height: host.fittingSize.height), f = screen.visibleFrame
+        let w = NSWindow(contentRect: NSRect(x: f.maxX - size.width - 12, y: f.maxY - size.height - 8, width: size.width, height: size.height),
+                         styleMask: .borderless, backing: .buffered, defer: false)
+        w.isOpaque = false
+        w.backgroundColor = .clear
+        w.level = .statusBar
+        w.ignoresMouseEvents = true
+        w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        w.isReleasedWhenClosed = false
+        w.contentView = host
+        w.orderFrontRegardless()
+        window = w
+    }
+}
+
+let hud = HUD()
+
+// MARK: - Parent PIN
+
+/// First run (or no PIN yet): the parent picks a 4-digit PIN. Returns true once one is saved.
+@discardableResult
+func createPIN() -> Bool {
+    NSApp.activate(ignoringOtherApps: true)
+    let a = NSAlert()
+    a.messageText = "👋 Welcome to Tube Timer!"
+    a.informativeText = "Create a 4-digit parent PIN. You'll need it to change settings, add time, or turn Tube Timer off. Keep it secret from your kids!"
+    let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 180, height: 24))
+    a.accessoryView = field
+    a.addButton(withTitle: "Save PIN")
+    a.addButton(withTitle: "Later")
+    a.window.initialFirstResponder = field
+    guard a.runModal() == .alertFirstButtonReturn else { return false }
+    let pin = field.stringValue
+    guard pin.count == 4, pin.allSatisfy(\.isNumber) else {
+        let bad = NSAlert()
+        bad.messageText = "The PIN must be exactly 4 digits."
+        bad.runModal()
+        return createPIN()
+    }
+    Limiter.shared.pin = pin
+    pinUnlockedUntil = Date().timeIntervalSince1970 + 10 * 60
+    return true
+}
+
+/// One-time: carry everything over from the app's earlier name ("YouTube Limit", com.homebase.youtubelimit).
+func migrateFromOldName() {
+    let d = UserDefaults.standard
+    guard !d.bool(forKey: "migratedFromOldName") else { return }
+    d.set(true, forKey: "migratedFromOldName")
+    let oldDomain = "com.homebase.youtubelimit" as CFString
+    if let keys = CFPreferencesCopyKeyList(oldDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? [String],
+       let old = CFPreferencesCopyMultiple(keys as CFArray, oldDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? [String: Any] {
+        for (k, v) in old where d.object(forKey: k) == nil { d.set(v, forKey: k) }
+    }
+    let oldLogin = NSHomeDirectory() + "/Library/LaunchAgents/com.homebase.youtubelimit.plist"
+    if FileManager.default.fileExists(atPath: oldLogin) {
+        try? FileManager.default.removeItem(atPath: oldLogin)
+        setOpenAtLogin(true)
+    }
+}
+
+var pinUnlockedUntil: Double = 0
+
+/// Runs `action` only after the parent PIN is entered (stays unlocked for 10 minutes).
+func requirePIN(_ action: @escaping () -> Void) {
+    if Date().timeIntervalSince1970 < pinUnlockedUntil { action(); return }
+    if Limiter.shared.pin.isEmpty { if createPIN() { action() }; return }
+    NSApp.activate(ignoringOtherApps: true)
+    let a = NSAlert()
+    a.messageText = "🔒 Parent PIN"
+    a.informativeText = "Enter the 4-digit PIN to change Tube Timer."
+    let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 180, height: 24))
+    a.accessoryView = field
+    a.addButton(withTitle: "OK")
+    a.addButton(withTitle: "Cancel")
+    a.window.initialFirstResponder = field
+    guard a.runModal() == .alertFirstButtonReturn else { return }
+    if field.stringValue == Limiter.shared.pin {
+        pinUnlockedUntil = Date().timeIntervalSince1970 + 10 * 60
+        action()
+    } else {
+        let bad = NSAlert()
+        bad.messageText = "Wrong PIN 🙅"
+        bad.informativeText = "Nice try! Ask a parent."
+        bad.runModal()
+    }
+}
+
+// MARK: - Control panel
+
+struct ControlsView: View {
+    @ObservedObject var m = Limiter.shared
+    @State private var tickNow = Date()
+    @State private var login = opensAtLogin
+    @State private var newPin = ""
+    @AppStorage("weekendFunAllDay") private var weekendFunAllDay = true
+
+    /// A time-of-day picker binding for a "minutes after midnight" setting.
+    func minutesBinding(_ key: String) -> Binding<Date> {
+        Binding(
+            get: {
+                let m = UserDefaults.standard.integer(forKey: key)
+                return Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: Date()) ?? Date()
+            },
+            set: {
+                let c = Calendar.current.dateComponents([.hour, .minute], from: $0)
+                UserDefaults.standard.set((c.hour ?? 0) * 60 + (c.minute ?? 0), forKey: key)
+                tickNow = Date()
+            })
+    }
+    @State private var pinMsg = ""
+    private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var status: String {
+        _ = tickNow
+        if !m.enabled { return "Monitor is OFF" }
+        if m.isLocked { return "🔒 Locked for \(fmt(m.lockedUntil - m.now))" }
+        return m.watching ? "▶️ Watching now (\(fmt(m.timeLeft)) left)" : "✅ Ready (\(fmt(m.timeLeft)) left)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Text("🐔").font(.system(size: 44))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tube Timer").font(.title2).bold()
+                    Text(status).foregroundColor(.secondary)
+                }
+                Spacer()
+                Toggle("", isOn: $m.enabled).toggleStyle(.switch).labelsHidden()
+            }
+
+            if !m.needsPermission.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("⚠️ Needs permission to control \(m.needsPermission.joined(separator: " & ")). Turn on Tube Timer under Automation.")
+                        .font(.callout).foregroundColor(.orange)
+                    Button("Open Automation Settings") {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!)
+                    }
+                }
+            }
+
+            TabView {
+                timeTab.padding(10).tabItem { Text("⏱ Time") }
+                videosTab.padding(10).tabItem { Text("🎓 Videos") }
+            }
+        }
+        .padding(20)
+        .frame(width: 500, height: 720)
+        .onReceive(clock) { tickNow = $0 }
+    }
+
+    var timeTab: some View {
+        ScrollView { timeTabContent }
+    }
+
+    var timeTabContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            GroupBox(label: Text("Today")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ProgressView(value: min(m.dailySec, m.dailyLimit), total: max(m.dailyLimit, 1))
+                    Text("\(fmt(m.dailySec)) of \(fmt(m.dailyLimit)) used today")
+                    Text("This sitting: \(fmt(m.sessionSec)) of \(fmt(m.sessionLimit))").foregroundColor(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
+            }
+            GroupBox(label: Text("Schedule")) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("🎉 Fun videos (school days)")
+                        Spacer()
+                        DatePicker("", selection: minutesBinding("funStart"), displayedComponents: .hourAndMinute).labelsHidden()
+                        Text("to")
+                        DatePicker("", selection: minutesBinding("funEnd"), displayedComponents: .hourAndMinute).labelsHidden()
+                    }
+                    Toggle("🎉 Fun videos allowed all day on weekends", isOn: $weekendFunAllDay)
+                    HStack {
+                        Text("🌙 YouTube off")
+                        Spacer()
+                        DatePicker("", selection: minutesBinding("offStart"), displayedComponents: .hourAndMinute).labelsHidden()
+                        Text("to")
+                        DatePicker("", selection: minutesBinding("offEnd"), displayedComponents: .hourAndMinute).labelsHidden()
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
+            }
+            GroupBox(label: Text("Limits")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Stepper("Per day: \(m.dailyMin) min", value: $m.dailyMin, in: 5...600, step: 5)
+                    Stepper("Per sitting: \(m.sessionMin) min", value: $m.sessionMin, in: 1...240)
+                    Stepper("Break after a sitting: \(m.lockoutMin) min", value: $m.lockoutMin, in: 1...240)
+                    Text("Weekends (Sat + Sun)").font(.caption).bold().padding(.top, 4)
+                    Stepper("Weekend per day: \(m.weekendDailyMin) min", value: $m.weekendDailyMin, in: 5...600, step: 10)
+                    Stepper("Weekend per sitting: \(m.weekendSessionMin) min", value: $m.weekendSessionMin, in: 1...240, step: 5)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
+            }
+            HStack {
+                Button("➕ 10 minutes") { m.addExtra() }.controlSize(.large)
+                Spacer()
+                Button("Reset today") { m.resetToday() }
+            }
+            HStack {
+                Text("Preview:").foregroundColor(.secondary)
+                Button("Party") { m.showParty(preview: true) }
+                Button("1-minute warning") { m.showWarning() }
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("⏯ The timer only counts while a video is actually playing.").font(.callout)
+                Text(m.playDetection == "precise"
+                     ? "Play detection: precise ✅"
+                     : "Play detection: basic. For precise: in Chrome, View → Developer → Allow JavaScript from Apple Events.")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            Toggle("Open automatically when I log in", isOn: Binding(get: { login }, set: { setOpenAtLogin($0); login = $0 }))
+            HStack {
+                Text("Parent PIN:")
+                SecureField("new 4 digits", text: $newPin).frame(width: 110)
+                Button("Change") {
+                    if newPin.count == 4 && newPin.allSatisfy(\.isNumber) { m.pin = newPin; pinMsg = "PIN changed ✅" }
+                    else { pinMsg = "Must be 4 digits" }
+                    newPin = ""
+                }
+                Text(pinMsg).font(.caption).foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+    }
+
+    var videosTab: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Only allow learning videos", isOn: $m.filterOn).font(.headline)
+                VStack(alignment: .leading, spacing: 4) {
+                    Stepper("🎉 Fun (entertainment) time: \(m.funMin) min a day", value: $m.funMin, in: 0...180, step: 5)
+                    Stepper("🎉 Weekend fun time: \(m.weekendFunMin) min a day", value: $m.weekendFunMin, in: 0...300, step: 10)
+                    Text("Fun time used today: \(fmt(m.funSec)) of \(Int(m.funLimit / 60)) min · earned today: \(m.earnedToday) of \(kMaxEarnsPerDay) (+\(kEarnMinutes) min each)")
+                        .font(.caption).foregroundColor(.secondary)
+                }.disabled(!m.filterOn)
+                Text("Allowed kinds of videos").font(.subheadline).bold()
+                LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 6) {
+                    ForEach(allCategories, id: \.self) { c in
+                        Toggle(c, isOn: Binding(get: { m.allowedCats.contains(c) },
+                                                set: { on in if on { m.allowedCats.append(c) } else { m.allowedCats.removeAll { $0 == c } } }))
+                    }
+                }.disabled(!m.filterOn)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Always allow these channels (comma separated)").font(.subheadline).bold()
+                    TextField("e.g. Khan Academy, Pianote", text: $m.allowChannels)
+                    Text("Always allow videos about (words in the title)").font(.subheadline).bold()
+                    TextField("e.g. paper airplane, how to draw", text: $m.allowTopics)
+                    Text("Always block these channels (fun time can't unlock these)").font(.subheadline).bold()
+                    TextField("e.g. Brent Rivera", text: $m.blockChannels)
+                    Text("Never allow videos about (not even with fun time)").font(.subheadline).bold()
+                    TextField("e.g. kissing, horror", text: $m.blockTopics)
+                    Text("Suggestion channels (Science Max, Mark Rober, Chase Dies in Space, What If, NASA, Math Antics, Storyline Online, piano channels…) and the shuffle/phonk songs are always allowed.")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                GroupBox(label: Text("🤖 Smart filter (optional)")) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(m.apiKey.isEmpty
+                             ? "Off. Using built-in word rules. Paste an Anthropic API key to let Claude judge each new video using your rules."
+                             : "On. Claude judges each new video the word rules can't settle (about half a cent per new video).")
+                            .font(.caption).foregroundColor(.secondary)
+                        SecureField("Anthropic API key (sk-ant-…)", text: $m.apiKey)
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
+                }
+                HStack {
+                    Text("Preview:").foregroundColor(.secondary)
+                    Button("\"Ah ah ah\"") { m.showNope(previewVideo, preview: true) }
+                    Button("\"Are you sure?\"") { m.showNope(previewVideo, mode: "ask", preview: true) }
+                    Button("Earn time") { m.showEarn(preview: true) }
+                }
+                if !m.earnLog.isEmpty {
+                    Text("🧠 His \"explain it\" answers (check he's being honest)").font(.subheadline).bold()
+                    ForEach(m.earnLog, id: \.self) { Text($0).font(.caption) }
+                }
+                if !m.recentBlocks.isEmpty {
+                    Text("Recently blocked").font(.subheadline).bold()
+                    ForEach(m.recentBlocks, id: \.self) { Text($0).font(.caption) }
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+let previewVideo = VideoInfo(id: "", title: "Some silly video", channel: "Preview Channel", category: "Entertainment")
+
+// MARK: - App
+
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    var window: NSWindow?
+    var statusItem: NSStatusItem!
+
+    func applicationDidFinishLaunching(_ n: Notification) {
+        migrateFromOldName()
+        if !UserDefaults.standard.bool(forKey: "didFirstLaunch") {
+            UserDefaults.standard.set(true, forKey: "didFirstLaunch")
+            setOpenAtLogin(true)
+        }
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let m = Limiter.shared
+        m.onChange = { [weak self] in self?.updateMenu() }
+        earn.onMessage = { kind, value in
+            if kind == "cancel" { earn.hide() }
+            if kind == "earned" {
+                m.completeEarn(explanation: value)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { earn.hide() }  // let the 🎉 screen show
+            }
+        }
+        nope.onMessage = { kind, value in
+            if kind == "fun" { m.approveFun() }
+            if kind == "earn" { m.showEarn() }
+            if kind == "pick", let url = URL(string: "https://www.youtube.com/watch?v=\(value)") { m.pickFromNope(url) }
+            if kind == "search", let q = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+               let url = URL(string: "https://www.youtube.com/results?search_query=\(q)") { m.pickFromNope(url) }
+        }
+        // Parent escape hatch: Control-Option-Command-P closes a lockout screen.
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+            if e.modifierFlags.contains([.control, .option, .command]), e.charactersIgnoringModifiers?.lowercased() == "p" {
+                party.hide(); nope.hide(); earn.hide()
+                return nil
+            }
+            return e
+        }
+        Suggestions.shared.refresh()
+        Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { _ in Suggestions.shared.refresh() }
+        m.start()
+
+        let args = CommandLine.arguments
+        if args.contains("--preview-party") { m.showParty(preview: true) }
+        else if args.contains("--preview-warning") { m.showWarning() }
+        else if args.contains("--preview-nope") || args.contains("--preview-ask") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) {  // give suggestions a moment to load
+                m.showNope(previewVideo, mode: args.contains("--preview-ask") ? "ask" : "nope", preview: true)
+            }
+        }
+        else if !args.contains("--login") {
+            // New install: set a PIN first, then show the controls.
+            if m.pin.isEmpty { DispatchQueue.main.async { if createPIN() { self.openControls() } } } else { showControls() }
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showControls()
+        return true
+    }
+
+    func updateMenu() {
+        let m = Limiter.shared
+        statusItem.button?.title = "🐔 " + m.menuTitle
+        hud.setVisible(m.enabled && m.onYouTube && !m.isLocked && !nope.isShowing)
+        if let w = window, w.isVisible, Date().timeIntervalSince1970 > pinUnlockedUntil { w.close() }  // PIN timed out
+        let menu = NSMenu()
+        func item(_ title: String, _ sel: Selector?) {
+            let i = NSMenuItem(title: title, action: sel, keyEquivalent: "")
+            i.target = self
+            menu.addItem(i)
+        }
+        item("Today: \(fmt(m.dailySec)) of \(fmt(m.dailyLimit))", nil)
+        menu.addItem(.separator())
+        item("Open Controls…", #selector(showControls))
+        item("➕ Give 10 more minutes", #selector(addExtra))
+        item(m.enabled ? "Turn Monitor Off" : "Turn Monitor On", #selector(toggleEnabled))
+        menu.addItem(.separator())
+        item("Quit Tube Timer", #selector(quit))
+        statusItem.menu = menu
+    }
+
+    @objc func showControls() { requirePIN { self.openControls() } }
+
+    func windowWillClose(_ notification: Notification) { pinUnlockedUntil = 0 }
+
+    func openControls() {
+        if window == nil {
+            let host = NSHostingView(rootView: ControlsView())
+            let w = NSWindow(contentRect: NSRect(origin: .zero, size: host.fittingSize),
+                             styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+            w.title = "Tube Timer"
+            w.contentView = host
+            w.isReleasedWhenClosed = false
+            w.delegate = self
+            w.center()
+            window = w
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc func addExtra() { requirePIN { Limiter.shared.addExtra() } }
+    @objc func toggleEnabled() { requirePIN { Limiter.shared.enabled.toggle() } }
+    @objc func quit() { requirePIN { NSApp.terminate(nil) } }
+}
+
+let app = NSApplication.shared
+let delegate = AppDelegate()
+app.delegate = delegate
+app.setActivationPolicy(.accessory)
+app.run()

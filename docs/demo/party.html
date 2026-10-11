@@ -1,0 +1,223 @@
+<!doctype html>
+<html><head>
+<!-- Demo copy of a Tube Timer screen (generated from app/). -->
+<script>window.PARAMS={"until": Date.now()/1000+1500, "partyUntil": Date.now()/1000+1500, "reason": "That's 30 minutes in a row. Take a 30 minute break!", "daily": false, "songs": [{"id": "iOQ2RpKpLEU", "start": 165, "title": "Astronomia shuffle dance"}, {"id": "svROfqdeyFI", "start": 0, "title": "100 Phonk songs on piano"}], "primary": true};</script><meta charset="utf-8"><title>Get up!</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#1a0b2e;color:#fff;
+  font-family:"Menlo","Courier New",monospace;user-select:none;-webkit-user-select:none;cursor:default}
+#disco{position:fixed;inset:-50%;background:conic-gradient(from 0deg,#ff004c66,#ffb30066,#00e0ff66,#7cff0066,#ff00e666,#ff004c66);animation:spin 6s linear infinite}
+#vignette{position:fixed;inset:0;background:radial-gradient(circle at 50% 40%,transparent 25%,#000a 85%);animation:flash .484s steps(2) infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes flash{50%{opacity:.55}}
+
+#lava{position:fixed;left:0;right:0;bottom:0;height:16vh;overflow:hidden;
+  background:repeating-linear-gradient(90deg,#ff4500 0 40px,#ff7b00 40px 80px,#ffb000 80px 100px,#e02800 100px 140px);
+  background-size:280px 100%;animation:flow 3s linear infinite;box-shadow:0 -10px 50px #ff5a00,inset 0 10px 0 #ffd000}
+@keyframes flow{to{background-position:280px 0}}
+.bubble{position:absolute;bottom:-20px;width:20px;height:20px;background:#ffd000;animation:pop 1.6s ease-in infinite}
+@keyframes pop{0%{transform:translateY(0) scale(.4);opacity:1}100%{transform:translateY(-15vh) scale(1.3);opacity:0}}
+
+#stage{position:fixed;inset:0;bottom:16vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;z-index:10}
+h1{font-size:clamp(48px,9vw,120px);margin:0;letter-spacing:4px;color:#ffd000;
+  text-shadow:6px 6px 0 #c21807,12px 12px 0 #000;animation:pulse .484s ease-in-out infinite alternate}
+@keyframes pulse{to{transform:scale(1.06) rotate(-1deg)}}
+#row{display:flex;align-items:center;justify-content:center;gap:28px;margin:14px 0}
+#milo{position:relative;animation:bob .484s ease-in-out infinite alternate}
+@keyframes bob{to{transform:translateY(-14px)}}
+.arm{position:absolute;top:0}
+.arm.l{transform-origin:100% 4%;animation:waveL .484s ease-in-out infinite alternate}
+.arm.r{transform-origin:0 4%;animation:waveR .484s ease-in-out infinite alternate}
+@keyframes waveL{from{transform:rotate(150deg)}to{transform:rotate(110deg)}}
+@keyframes waveR{from{transform:rotate(-110deg)}to{transform:rotate(-150deg)}}
+#name{font-size:20px;font-weight:700;background:#0008;padding:2px 10px;margin-top:6px;display:inline-block}
+#bubble{background:#fff;color:#111;font-size:clamp(20px,2.6vw,34px);font-weight:700;padding:22px 26px;max-width:480px;
+  border:6px solid #111;box-shadow:8px 8px 0 #000;position:relative;text-align:left;line-height:1.25}
+#bubble:before{content:"";position:absolute;left:-30px;top:40px;border:14px solid transparent;border-right:18px solid #111}
+#tags{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;max-width:1000px;margin:6px 0}
+.tag{font-size:clamp(16px,2vw,26px);font-weight:700;padding:8px 14px;background:#2fae4f;border:4px solid #111;box-shadow:4px 4px 0 #000;
+  animation:hop .968s ease-in-out infinite}
+.tag:nth-child(2n){background:#2b6cff}.tag:nth-child(3n){background:#ff4fa3}
+@keyframes hop{0%,100%{transform:translateY(0)}25%{transform:translateY(-10px) rotate(-3deg)}75%{transform:translateY(-4px) rotate(3deg)}}
+#reason{font-size:clamp(16px,1.8vw,24px);margin:8px;background:#0008;padding:6px 14px}
+#count{font-size:clamp(22px,3vw,40px);font-weight:700;color:#ffd000;margin:4px;text-shadow:3px 3px 0 #000}
+#sub{font-size:clamp(16px,1.8vw,24px);color:#fff;text-shadow:2px 2px 0 #000}
+#tv{position:fixed;top:16px;right:16px;z-index:11;background:#222;border:6px solid #111;box-shadow:6px 6px 0 #000;padding:8px 8px 4px}
+#tv iframe{display:block;width:min(26vw,320px);aspect-ratio:16/9;border:0;pointer-events:none}
+#tv div{font-size:13px;text-align:center;padding:4px 0 0;color:#ffd000}
+
+.chick{position:fixed;z-index:4;animation:dance .484s ease-in-out infinite alternate}
+.chick.alt{animation-delay:-.242s}
+.chick.flip svg{transform:scaleX(-1)}
+@keyframes dance{from{transform:translateY(0) rotate(-12deg)}to{transform:translateY(-38px) rotate(12deg)}}
+.lavachick{position:fixed;bottom:3vh;z-index:6;animation:swim 1.2s ease-in-out infinite alternate}
+@keyframes swim{from{transform:translateY(0) rotate(-6deg)}to{transform:translateY(-22px) rotate(6deg)}}
+.flame{position:absolute;left:50%;top:-58px;margin-left:-35px;transform-origin:bottom;animation:flick .2s steps(2) infinite}
+@keyframes flick{50%{transform:scaleY(1.25) scaleX(.9)}}
+.flyer{position:fixed;z-index:3;animation:fly 7s linear infinite}
+@keyframes fly{from{transform:translateX(-200px)}to{transform:translateX(calc(100vw + 200px))}}
+.flyer svg{animation:flap .2s steps(2) infinite}
+@keyframes flap{50%{transform:translateY(-10px)}}
+.drop{position:fixed;top:-60px;z-index:2;font-size:38px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+</style></head>
+<body>
+<div id="disco"></div><div id="vignette"></div>
+<div id="tv" hidden><iframe allow="autoplay; encrypted-media"></iframe><div>📺 DANCE PARTY 🕺</div></div>
+
+<div id="stage">
+  <h1>TIME'S UP!</h1>
+  <div id="row">
+    <div><div id="milo"></div><div id="name">MILO</div></div>
+    <div id="bubble">Hey! You've been on YouTube too long.<br>GET UP! 🐔</div>
+  </div>
+  <div id="tags">
+    <span class="tag">Get up</span><span class="tag">Go get active</span><span class="tag">Talk to people</span>
+    <span class="tag">Shake your butt</span><span class="tag">Go outside</span><span class="tag">Walk around</span>
+  </div>
+  <div id="reason"></div>
+  <div id="count"></div>
+  <div id="sub"></div>
+</div>
+
+<div id="lava"></div>
+
+<script>
+const P = Object.assign({until: Date.now()/1000 + 1800, partyUntil: Date.now()/1000 + 1800, reason: "Preview", daily: false, primary: true,
+  songs: [{id: "iOQ2RpKpLEU", start: 165}, {id: "svROfqdeyFI", start: 0}]}, window.PARAMS || {});
+
+// ---------- pixel sprites ----------
+function sprite(rows, pal, px){
+  const h = rows.length, w = rows[0].length; let r = "";
+  rows.forEach((row,y)=>[...row].forEach((c,x)=>{ if(pal[c]) r += `<rect x="${x}" y="${y}" width="1.03" height="1.03" fill="${pal[c]}"/>`; }));
+  return `<svg width="${w*px}" height="${h*px}" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges">${r}</svg>`;
+}
+const CHICKEN = [
+  "......WWWW....",
+  "......WWKW....",
+  "......WWWWOO..",
+  "......WWWWRR..",
+  ".WW...WWWW....",
+  "WWWWWWWWWW....",
+  "WWwwwWWWWW....",
+  "WWwwwWWWWW....",
+  "WWWwwWWWWW....",
+  ".WWWWWWWWW....",
+  "..WWWWWWW.....",
+  "....Y..Y......",
+  "...YY.YY......",
+];
+const WHITE = {W:"#fff",w:"#cfcfcf",O:"#ff9d00",R:"#e01b1b",Y:"#f5c400",K:"#111"};
+const LAVA  = {W:"#ff6a00",w:"#b81500",O:"#ffd000",R:"#7a0000",Y:"#ffd000",K:"#111"};
+const FLAME = [
+  "...F...",
+  "..FYF..",
+  ".FYWYF.",
+  "FYYWYYF",
+  "FYWWWYF",
+  ".FYYYF.",
+];
+const FPAL = {F:"#ff3b00",Y:"#ffd000",W:"#fff6b0"};
+
+const MILO_BODY = [
+  "....HHHHHHHH....","....HHHHHHHH....","....HSSSSSSH....","....SSSSSSSS....",
+  "....SEKSSKES....","....SSSNNSSS....","....SSMMMMSS....","....SSSSSSSS....",
+  "....GGGGGGGG....","....GGGLLGGG....","....GGLLLLGG....","....GGGLLGGG....",
+  "....GGGGGGGG....","....GGGGGGGG....","....GGGGGGGG....","....GGGGGGGG....",
+  "....GGGGGGGG....","....GGGGGGGG....","....BBBBBBBB....","....BBBBBBBB....",
+  "....PPPPPPPP....","....PPPPPPPP....","....PPPPPPPP....","....PPPPPPPP....",
+  "....PPPPPPPP....","....PPPPPPPP....","....PPPPPPPP....","....PPPPPPPP....",
+  "....PPPPPPPP....","....PPPPPPPP....","....DDDDDDDD....","....DDDDDDDD....",
+];
+const MILO_ARM = ["GGGG","GGGG","GGGG","SSSS","SSSS","SSSS","SSSS","SSSS","SSSS","SSSS","SSSS","SSSS"];
+const MPAL = {H:"#3b2412",S:"#e0a77a",N:"#c98b5f",E:"#fff",K:"#1f7a3d",M:"#8a3b2b",G:"#2fae4f",L:"#9dff9d",B:"#3a2a1a",P:"#2c3e91",D:"#555"};
+
+const mpx = Math.max(6, Math.min(10, Math.round(innerHeight/110)));
+const milo = document.getElementById("milo");
+milo.style.width = 16*mpx+"px"; milo.style.height = 32*mpx+"px";
+milo.innerHTML = sprite(MILO_BODY, MPAL, mpx)
+  + `<div class="arm l" style="left:0;top:${8*mpx}px">${sprite(MILO_ARM, MPAL, mpx)}</div>`
+  + `<div class="arm r" style="left:${12*mpx}px;top:${8*mpx}px">${sprite(MILO_ARM, MPAL, mpx)}</div>`;
+
+function add(cls, html, style){ const d = document.createElement("div"); d.className = cls; d.innerHTML = html; Object.assign(d.style, style); document.body.appendChild(d); return d; }
+
+// dancing chickens on the shore
+[[3,0],[12,1],[78,1],[89,0]].forEach(([left,flip],i)=>
+  add("chick"+(flip?" flip":"")+(i%2?" alt":""), sprite(CHICKEN, WHITE, 9), {left:left+"%", bottom:"15vh"}));
+// lava chickens swimming in the lava, on fire
+[[28,0],[47,1],[64,0]].forEach(([left,flip],i)=>{
+  const c = add("lavachick"+(flip?" flip":""), sprite(CHICKEN, LAVA, 8)+`<div class="flame">${sprite(FLAME, FPAL, 10)}</div>`,
+    {left:left+"%", animationDelay:(-i*0.4)+"s"});
+  if(flip) c.querySelector("svg").style.transform = "scaleX(-1)";
+});
+// flying chickens
+add("flyer", sprite(CHICKEN, WHITE, 6), {top:"6vh", animationDelay:"0s"});
+add("flyer", sprite(CHICKEN, LAVA, 6)+"", {top:"22vh", animationDelay:"-3.5s", animationDuration:"9s"});
+// lava bubbles
+const lava = document.getElementById("lava");
+for(let i=0;i<14;i++){ const b=document.createElement("div"); b.className="bubble";
+  b.style.left=(Math.random()*100)+"%"; b.style.animationDelay=(-Math.random()*1.6)+"s"; lava.appendChild(b); }
+// raining stuff
+const DROPS = ["🥚","🍗","🪶","🐣","🔥","🥚","🍗"];
+setInterval(()=>{
+  const d = add("drop", DROPS[Math.floor(Math.random()*DROPS.length)], {left:(Math.random()*96)+"vw"});
+  d.style.animationDuration = (2.5+Math.random()*2.5)+"s";
+  d.addEventListener("animationend", ()=>d.remove());
+}, 350);
+
+// ---------- countdown + button ----------
+document.getElementById("reason").textContent = P.reason;
+const count = document.getElementById("count"), sub = document.getElementById("sub");
+const clock = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = String(s%60).padStart(2,"0");
+  return h ? h+"h "+String(m).padStart(2,"0")+"m" : m+":"+x; };
+function tick(){
+  const now = Date.now()/1000, left = P.partyUntil - now;
+  count.textContent = left > 0 ? "Computer unlocks in " + clock(left) : "Break's over! 🎉";
+  sub.textContent = P.daily ? "YouTube is done for today 🌙"
+    : (P.until - P.partyUntil > 5 && P.until > now) ? "YouTube unlocks in " + clock(P.until - now) : "";
+}
+tick(); setInterval(tick, 1000);
+
+// ---------- music: your two songs via YouTube's player; chiptune if offline ----------
+if(P.primary && navigator.onLine && P.songs.length){
+  const [a, ...rest] = P.songs;
+  const list = rest.map(s=>s.id).concat(a.id).join(",");
+  document.querySelector("#tv iframe").src =
+    `https://www.youtube-nocookie.com/embed/${a.id}?autoplay=1&start=${a.start||0}&playlist=${list}&loop=1&controls=0&rel=0&playsinline=1`;
+  document.getElementById("tv").hidden = false;
+} else if(P.primary){
+  startAudio();
+}
+
+function startAudio(){
+  let ctx = null, master = null;
+  ctx = new (window.AudioContext||window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = 0.35; master.connect(ctx.destination);
+  const noise = ctx.createBuffer(1, ctx.sampleRate*0.1, ctx.sampleRate);
+  const nd = noise.getChannelData(0); for(let i=0;i<nd.length;i++) nd[i] = Math.random()*2-1;
+  function env(t, g, a, len){ g.gain.setValueAtTime(a, t); g.gain.exponentialRampToValueAtTime(0.001, t+len); }
+  function kick(t){ const o=ctx.createOscillator(), g=ctx.createGain(); o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(40,t+0.15);
+    env(t,g,1,0.2); o.connect(g).connect(master); o.start(t); o.stop(t+0.2); }
+  function hat(t){ const s=ctx.createBufferSource(), f=ctx.createBiquadFilter(), g=ctx.createGain(); s.buffer=noise; f.type="highpass"; f.frequency.value=7000;
+    env(t,g,0.3,0.05); s.connect(f).connect(g).connect(master); s.start(t); }
+  function tone(t, freq, type, vol, len){ const o=ctx.createOscillator(), g=ctx.createGain(); o.type=type; o.frequency.value=freq;
+    env(t,g,vol,len); o.connect(g).connect(master); o.start(t); o.stop(t+len); }
+  function bawk(t){ [0,0.09].forEach(d=>{ const o=ctx.createOscillator(), g=ctx.createGain(); o.type="square";
+    o.frequency.setValueAtTime(900,t+d); o.frequency.exponentialRampToValueAtTime(500,t+d+0.08); env(t+d,g,0.15,0.08); o.connect(g).connect(master); o.start(t+d); o.stop(t+d+0.09); }); }
+  const BASS = [55,0,55,0,65.4,0,73.4,0,55,0,55,0,82.4,0,73.4,65.4];
+  const LEAD = [523,0,659,0,784,0,659,0,587,0,698,0,880,0,698,0];
+  const s16 = 60/124/4; let step = 0, next = ctx.currentTime + 0.1;
+  setInterval(()=>{
+    while(next < ctx.currentTime + 0.2){
+      if(step%4===0) kick(next);
+      if(step%2===1) hat(next);
+      const b = BASS[step%16]; if(b) tone(next, b, "sawtooth", 0.25, s16*1.8);
+      const l = LEAD[step%16]; if(l && Math.floor(step/32)%2) tone(next, l, "square", 0.06, s16*0.9);
+      if(step%32===28 || step%32===30) bawk(next);
+      next += s16; step++;
+    }
+  }, 50);
+  if(ctx.state === "suspended") ctx.resume();
+}
+</script>
+</body></html>

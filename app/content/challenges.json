@@ -1,0 +1,102 @@
+[
+  {
+    "id": "Sw-pRuuV1us", "title": "Unlock the 11 Times Table Trick", "channel": "Tang Math", "seconds": 178, "vertical": true,
+    "questions": [
+      {"q": "Use the trick: 23 × 11 = ?", "answer": 253},
+      {"q": "34 × 11 = ?", "answer": 374},
+      {"q": "52 × 11 = ?", "answer": 572},
+      {"q": "For 43 × 11, what number goes in the MIDDLE?", "answer": 7}
+    ],
+    "explain": "Explain the 11 trick in your own words. How would you do 26 × 11?"
+  },
+  {
+    "id": "5vc3L6vqIMQ", "title": "Understanding the Nines Multiplication Table", "channel": "Tang Math", "seconds": 132, "vertical": true,
+    "questions": [
+      {"q": "9 × 7 = ?", "answer": 63},
+      {"q": "9 × 8 = ?", "answer": 72},
+      {"q": "9 × 45 = ?", "answer": 405},
+      {"q": "Look at 18, 27, 36, 45. What do the two digits always add up to?", "answer": 9}
+    ],
+    "explain": "Explain in your own words an easy way to multiply a number by 9."
+  },
+  {
+    "id": "j8A2uMPc4eE", "title": "Multiplying by 5: A Simpler Strategy", "channel": "Tang Math", "seconds": 157, "vertical": true,
+    "questions": [
+      {"q": "5 × 16 = ?", "answer": 80},
+      {"q": "5 × 24 = ?", "answer": 120},
+      {"q": "5 × 46 = ?", "answer": 230},
+      {"q": "An easy way to do 5 × 18 is…", "choices": ["18 × 10, then cut it in half", "18 + 5", "18 × 2, then add 5"], "answer": 0}
+    ],
+    "explain": "Explain in your own words why multiplying by 5 is like multiplying by 10 and cutting it in half."
+  },
+  {
+    "id": "iGrWlVNwZQw", "title": "Easy Math Tricks for Calculating Tips", "channel": "Tang Math", "seconds": 129, "vertical": true,
+    "questions": [
+      {"q": "10% of $40 = ? (dollars)", "answer": 4},
+      {"q": "15% of $20 = ? (dollars)", "answer": 3},
+      {"q": "15% of $60 = ? (dollars)", "answer": 9},
+      {"q": "To find 15%, you can…", "choices": ["find 10%, then add half of that", "multiply by 15", "divide by 15"], "answer": 0}
+    ],
+    "explain": "Explain in your own words how you would figure out a 15% tip on an $80 meal."
+  },
+  {
+    "id": "QAPXezCn3P0", "title": "Understanding Number Bonds: A Simple Approach", "channel": "Tang Math", "seconds": 146, "vertical": true,
+    "questions": [
+      {"q": "84 ÷ 4 = ?  (hint: break 84 into 80 and 4)", "answer": 21},
+      {"q": "96 ÷ 3 = ?  (hint: 90 and 6)", "answer": 32},
+      {"q": "128 ÷ 4 = ?", "answer": 32},
+      {"q": "To do 66 ÷ 3 with number bonds, break 66 into…", "choices": ["60 and 6", "33 and 33", "6 and 6"], "answer": 0}
+    ],
+    "explain": "Explain in your own words how breaking a big number into parts makes dividing easier."
+  },
+  {
+    "id": "ecv0YalGWM8", "title": "Understanding Triangle Area: A Simple Explanation", "channel": "Tang Math", "seconds": 65, "vertical": true,
+    "questions": [
+      {"q": "A triangle has base 6 and height 4. Area = ?", "answer": 12},
+      {"q": "Base 10, height 5. Area = ?", "answer": 25},
+      {"q": "Base 8, height 3. Area = ?", "answer": 12},
+      {"q": "A triangle's area is ___ of the rectangle around it.", "choices": ["half", "double", "the same"], "answer": 0}
+    ],
+    "explain": "Explain in your own words why we divide by 2 when finding a triangle's area."
+  },
+  {
+    "id": "EvGgH44yGK4", "title": "Reducing Division Problems Like Fractions", "channel": "Tang Math", "seconds": 71, "vertical": true,
+    "questions": [
+      {"q": "128 ÷ 16 = ?", "answer": 8},
+      {"q": "72 ÷ 8 = ?  (try halving both numbers)", "answer": 9},
+      {"q": "96 ÷ 12 = ?", "answer": 8},
+      {"q": "128 ÷ 16 is the same as…", "choices": ["64 ÷ 8", "64 ÷ 16", "128 ÷ 8"], "answer": 0}
+    ],
+    "explain": "Explain in your own words how halving both numbers makes a division problem easier."
+  },
+  {
+    "id": "EVM9fllk8Lk", "title": "THE PLANETS Song – Same Universe", "channel": "Smile and Learn", "seconds": 160, "vertical": false,
+    "questions": [
+      {"q": "How many planets are in our solar system?", "answer": 8},
+      {"q": "Which planet is closest to the Sun?", "choices": ["Mercury", "Venus", "Mars"], "answer": 0},
+      {"q": "Which planet is the biggest?", "choices": ["Jupiter", "Saturn", "Earth"], "answer": 0},
+      {"q": "Which planet is farthest from the Sun?", "choices": ["Neptune", "Uranus", "Mars"], "answer": 0}
+    ],
+    "explain": "Name the 8 planets in order from the Sun, and tell one thing you learned from the song."
+  },
+  {
+    "id": "74YoTq0D6PU", "title": "Prepositions of Place for Kids", "channel": "Smile and Learn", "seconds": 331, "vertical": false,
+    "questions": [
+      {"q": "The cat is ___ the box (inside it).", "choices": ["in", "on", "under"], "answer": 0},
+      {"q": "The book is ___ the table (on top of it).", "choices": ["on", "under", "behind"], "answer": 0},
+      {"q": "The ball is ___ the chair (below it).", "choices": ["under", "on", "in"], "answer": 0},
+      {"q": "The dino is ___ the tree (the tree is behind him).", "choices": ["in front of", "behind", "under"], "answer": 0}
+    ],
+    "explain": "Describe where 3 things are in your room using prepositions (like in, on, under, next to, behind)."
+  },
+  {
+    "id": "86cmhtznGHg", "title": "WATER for Kids: The Water Cycle", "channel": "Smile and Learn", "seconds": 649, "vertical": false,
+    "questions": [
+      {"q": "When the Sun heats water and it turns into vapor, that's called…", "choices": ["evaporation", "condensation", "precipitation"], "answer": 0},
+      {"q": "When vapor cools and forms clouds, that's called…", "choices": ["condensation", "evaporation", "precipitation"], "answer": 0},
+      {"q": "When rain or snow falls from clouds, that's called…", "choices": ["precipitation", "condensation", "evaporation"], "answer": 0},
+      {"q": "Which one saves water at home?", "choices": ["Turn off the tap while brushing your teeth", "Take really long baths", "Leave the hose running"], "answer": 0}
+    ],
+    "explain": "Explain the water cycle in your own words, from the ocean to the clouds and back."
+  }
+]
