@@ -13,7 +13,7 @@ Tube Timer is a free Mac app made by a dad whose son was on YouTube all day. It 
 - **Shows a countdown on screen** so kids always know how much time is left.
 - **Is locked with a parent PIN.**
 
-> 🌐 **Website:** https://jbellsolutions.github.io/tube-timer/
+> 🌐 **Website:** https://tube-timer.up.railway.app/
 > 👨‍👩‍👦 **Parents' community (more apps, Minecraft mods, learning curriculum):** see the website
 
 ---

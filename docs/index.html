@@ -6,8 +6,10 @@
 <title>Tube Timer: break the YouTube loop</title>
 <meta name="description" content="A dad-built Mac app that keeps YouTube for learning, rations the brain-rot, and makes kids get up and move. No more daily screen-time fights.">
 <meta property="og:title" content="Tube Timer: it's not the screen time, it's the loop">
-<meta property="og:description" content="Learning stays unlimited. Brain-rot gets rationed. When time's up, the screen turns into a dance party that makes them get up and move.">
+<meta property="og:description" content="Learning videos are recognized. Entertainment gets its own budget; overall viewing limits still apply. When time's up, the screen turns into a dance party that makes them get up and move.">
 <meta property="og:image" content="icon.png">
+<link rel="canonical" href="https://tube-timer.up.railway.app/">
+<meta property="og:url" content="https://tube-timer.up.railway.app/">
 <link rel="icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -199,7 +201,7 @@ footer a{color:#fff}
     <div>
       <span class="eyebrow">For parents who are tired of losing the YouTube fight</span>
       <h1>It's not the screen time. <em>It's the loop.</em></h1>
-      <p class="lead">Tube Timer is the dad-built Mac app that breaks YouTube's autoplay loop. <b>Learning stays unlimited. Brain-rot gets rationed.</b> And when time's up, the screen turns into a dance party that makes your kid <b>get up and move</b>.</p>
+      <p class="lead">Tube Timer is the dad-built Mac app that breaks YouTube's autoplay loop. <b>Learning videos are recognized. Entertainment gets its own budget; overall viewing limits still apply.</b> And when time's up, the screen turns into a dance party that makes your kid <b>get up and move</b>.</p>
       <div class="cta-row">
         <a class="btn primary" href="#pricing">Get Tube Timer for Mac</a>
         <a class="btn ghost" href="#demo">▶ See what kids see</a>
@@ -307,7 +309,7 @@ footer a{color:#fff}
       <div class="feat"><b>🔒 Parent PIN</b><span>Settings, extra time and the off switch are all behind your 4-digit PIN.</span></div>
       <div class="feat"><b>📝 "Explain it" answers</b><span>Read what your kid wrote about the video he watched to earn his time. A built-in honesty check.</span></div>
       <div class="feat"><b>🤖 Optional AI judge</b><span>Plug in an AI key and Claude judges each new video against <i>your</i> rules. Generous with learning, strict on brain-rot.</span></div>
-      <div class="feat"><b>🛡 Private by design</b><span>No accounts, no tracking. Everything stays on your Mac.</span></div>
+      <div class="feat"><b>🛡 Private by design</b><span>Settings stay on your Mac. Optional AI classification sends video information to Anthropic.</span></div>
     </div>
   </div>
 </section>
@@ -363,7 +365,7 @@ footer a{color:#fff}
     <div style="text-align:center">
       <span class="eyebrow">Get Tube Timer</span>
       <h2>Two ways to break the loop tonight.</h2>
-      <p class="lead">Installs in about 2 minutes. Mac (macOS 13+) now. Phones and tablets coming soon.</p>
+      <p class="lead">For Mac (macOS 13+) and supported browsers. First installation may require macOS permission prompts.</p>
     </div>
     <div class="price-grid">
       <div class="plan">
@@ -374,9 +376,9 @@ footer a{color:#fff}
           <li>The full Tube Timer Mac app</li>
           <li>Everything above: sorting, real-play timer, get-up breaks, earn-time quizzes, bedtime, PIN</li>
           <li>Free updates</li>
-          <li><b>🎁 Bonus:</b> the mobile app <b>free</b> when it launches</li>
+          <li>Mac version available now; mobile is not included in this release</li>
         </ul>
-        <a class="btn primary" data-link="gumroad" href="#">Download now for $50</a>
+        <a class="btn primary" data-link="gumroad" href="#">View $50 listing on Gumroad</a>
         <form class="coupon" id="couponForm">
           <input id="couponCode" placeholder="Have a tester code?" aria-label="Coupon code" autocomplete="off">
           <button class="btn small ghost" type="submit">Apply</button>
@@ -397,6 +399,7 @@ footer a{color:#fff}
         <a class="btn secondary" data-link="skool" href="#">Start my free 7-day trial</a>
       </div>
     </div>
+    <p class="fine" style="text-align:center">The Gumroad listing is being prepared for purchase. Check its current availability before buying. Already have the app? <a href="/download-help/">Read the download and setup guide</a>.</p>
     <p class="guarantee">🔒 Secure checkout. Questions before you buy? <a href="#faq">Read the FAQ</a>.</p>
   </div>
 </section>
@@ -405,11 +408,11 @@ footer a{color:#fff}
   <div class="wrap narrow">
     <span class="eyebrow">Questions parents ask</span>
     <h2>FAQ</h2>
-    <details><summary>Does it work on Windows, iPad or phones?</summary><p>Right now Tube Timer runs on Macs (macOS 13 Ventura or newer) and watches YouTube in Chrome, Safari, Brave, Edge and Arc. A mobile version is coming soon. If you buy the Mac download, you'll get it free. Windows is on the roadmap.</p></details>
-    <details><summary>Will my kid just get around it?</summary><p>The breaks and blocks take over the whole screen and can't be clicked away, and every setting is behind your PIN. For the strongest setup, give your child a <b>Standard</b> (non-admin) macOS account, so they can't quit or delete apps.</p></details>
+    <details><summary>Does it work on Windows, iPad or phones?</summary><p>Right now Tube Timer runs on Macs (macOS 13 Ventura or newer) and watches YouTube in Chrome, Safari, Brave, Edge and Arc. There is no mobile or Windows version in this release.</p></details>
+    <details><summary>Will my kid just get around it?</summary><p>The breaks and blocks take over the whole screen and can't be clicked away, and every setting is behind your PIN. A Standard (non-admin) macOS account can reduce permissions, but this is not a guarantee against bypassing. A person with administrator access can quit or remove software.</p></details>
     <details><summary>Does it block all of YouTube?</summary><p>No. That's the point. Learning videos (science, space, math, reading, art, crafts, quizzes, music) stay open. Pure "brain-rot" gets a small daily fun-time budget you control. Only inappropriate stuff is blocked outright. You can always-allow or always-block specific channels.</p></details>
     <details><summary>How does it know what's a learning video?</summary><p>It reads each video's public YouTube info (title, channel, category, family-safe flag) and applies smart rules. A clear learning angle like "quiz," "science" or "how to draw" wins even on a gaming channel. You can add an optional AI key so Claude judges tricky videos by your rules.</p></details>
-    <details><summary>Is my family's data collected?</summary><p>No. There are no accounts and no tracking. Everything runs and stays on your Mac.</p></details>
+    <details><summary>Is my family's data collected?</summary><p>Tube Timer runs on your Mac and stores settings locally. It reads public YouTube video information. If you enable the optional Claude AI filter, video information is sent to Anthropic using your API key.</p></details>
     <details><summary>Is there a free version?</summary><p>Yes. Tube Timer's source code is public on <a data-link="github" href="#">GitHub</a> for technical parents who want to build it themselves with Terminal. The paid download is the easy, ready-to-run version, and it supports a dad building more of these tools.</p></details>
     <details><summary>Can I customize the times, limits and videos?</summary><p>Everything: daily limit, sitting length, break length, fun-time minutes, weekend rules, fun-time hours, YouTube bedtime, allowed categories and channels, the suggested videos, and the earn-time quizzes.</p></details>
   </div>
@@ -420,7 +423,7 @@ footer a{color:#fff}
     <h2>Tonight could be the last YouTube fight.</h2>
     <p class="lead">Let the app be the bad guy. Get your kid back: up, moving, learning, maybe even at the piano.</p>
     <div class="cta-row">
-      <a class="btn primary" data-link="gumroad" href="#">Download for $50</a>
+      <a class="btn primary" data-link="gumroad" href="#">View Tube Timer on Gumroad</a>
       <a class="btn secondary" data-link="skool" href="#">Or try free for 7 days</a>
     </div>
   </div>
