@@ -1,0 +1,182 @@
+[
+  {
+    "method": "GET",
+    "path": "/",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 95,
+    "content_type": "text/html"
+  },
+  {
+    "method": "HEAD",
+    "path": "/",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 90,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/index.html",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 78,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/healthz",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 72,
+    "content_type": "text/plain"
+  },
+  {
+    "method": "HEAD",
+    "path": "/healthz",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 75,
+    "content_type": "text/plain"
+  },
+  {
+    "method": "GET",
+    "path": "/icon.png",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 72,
+    "content_type": "image/png"
+  },
+  {
+    "method": "GET",
+    "path": "/favicon.png",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 69,
+    "content_type": "image/png"
+  },
+  {
+    "method": "GET",
+    "path": "/demo/ask.html",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 80,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/demo/earn.html",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 67,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/demo/nope.html",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 72,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/demo/party.html",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 74,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/download-help/",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 68,
+    "content_type": "text/html"
+  },
+  {
+    "method": "HEAD",
+    "path": "/download-help/",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 76,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/?utm_source=beta&utm_campaign=tube-timer",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 75,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/download-help/?source=gumroad",
+    "expected": 200,
+    "actual": 200,
+    "pass": true,
+    "duration_ms": 68,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/.env",
+    "expected": 404,
+    "actual": 404,
+    "pass": true,
+    "duration_ms": 65,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/.git/config",
+    "expected": 404,
+    "actual": 404,
+    "pass": true,
+    "duration_ms": 68,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/Dockerfile",
+    "expected": 404,
+    "actual": 404,
+    "pass": true,
+    "duration_ms": 78,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/app/main.swift",
+    "expected": 404,
+    "actual": 404,
+    "pass": true,
+    "duration_ms": 65,
+    "content_type": "text/html"
+  },
+  {
+    "method": "GET",
+    "path": "/missing-page",
+    "expected": 404,
+    "actual": 404,
+    "pass": true,
+    "duration_ms": 67,
+    "content_type": "text/html"
+  }
+]
