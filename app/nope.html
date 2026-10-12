@@ -49,6 +49,15 @@ h1{margin:0;font-size:clamp(56px,8vw,120px);color:#ff2a4d;text-shadow:5px 5px 0 
   border:5px solid #111;box-shadow:6px 6px 0 #000;cursor:pointer;animation:glow 1s ease-in-out infinite alternate}
 @keyframes glow{to{box-shadow:6px 6px 0 #000,0 0 24px #2b6cff}}
 .secondary #right{display:none}
+#parentBtn{position:fixed;left:14px;bottom:14px;z-index:30;font:700 12px "Menlo",monospace;padding:6px 10px;border:3px solid #111;background:#ffffffcc;color:#111;cursor:pointer;box-shadow:2px 2px 0 #000}
+#parentBox{position:fixed;inset:0;z-index:40;background:#000a;display:flex;align-items:center;justify-content:center}
+#parentBox[hidden]{display:none}
+.pb{background:#fff;color:#111;border:5px solid #111;box-shadow:8px 8px 0 #000;padding:22px;display:flex;flex-direction:column;gap:10px;min-width:300px;text-align:center}
+.pb b{font-size:20px}
+.pb input{font:700 28px "Menlo",monospace;text-align:center;letter-spacing:10px;padding:8px;border:3px solid #111}
+.pb #pinMsg{min-height:18px;color:#c00;font-weight:700}
+.pb button{font:700 14px "Menlo",monospace;padding:9px 12px;border:3px solid #111;background:#ffd000;color:#111;cursor:pointer;box-shadow:3px 3px 0 #000}
+.pb button.alt{background:#eee}
 </style></head>
 <body>
 <div id="matrix"></div><div id="scan"></div><div id="alarm"></div>
@@ -68,6 +77,15 @@ h1{margin:0;font-size:clamp(56px,8vw,120px);color:#ff2a4d;text-shadow:5px 5px 0 
     <button id="more">🔄 Show me 5 different ones</button>
   </div>
 </div>
+<button id="parentBtn">🔒 Parent</button>
+<div id="parentBox" hidden><div class="pb">
+  <b>🔒 Parent PIN</b>
+  <input id="pinIn" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
+  <div id="pinMsg"></div>
+  <button data-act="end">Close this screen</button>
+  <button data-act="off">Turn Tube Timer off</button>
+  <button data-act="cancel" class="alt">Cancel</button>
+</div></div>
 <script>
 const P = Object.assign({mode: "nope", channel: "Some Channel", category: "Entertainment", title: "", skin: 0, slots: [],
   funLeft: 1200, funMin: 20, funWindow: "4:00 PM–8:30 PM", primary: true}, window.PARAMS || {});
@@ -217,5 +235,15 @@ function render(){
 }
 $("more").onclick = () => { round++; render(); };
 render();
+
+// ---------- parent PIN: close this screen or turn Tube Timer off ----------
+if (!P.primary) $("parentBtn").hidden = true;
+$("parentBtn").onclick = () => { $("parentBox").hidden = false; $("pinMsg").textContent = ""; $("pinIn").value = ""; $("pinIn").focus(); };
+document.querySelectorAll(".pb button").forEach(b => b.onclick = () => {
+  if (b.dataset.act === "cancel") { $("parentBox").hidden = true; return; }
+  send("parent", JSON.stringify({pin: $("pinIn").value, action: b.dataset.act}));
+});
+$("pinIn").addEventListener("keydown", e => { if (e.key === "Enter") document.querySelector('.pb button[data-act="end"]').click(); });
+window.parentResult = (ok, msg) => { if (!ok) { $("pinMsg").textContent = msg; $("pinIn").value = ""; $("pinIn").focus(); } };
 </script>
 </body></html>

@@ -1,7 +1,7 @@
 <!doctype html>
 <html><head>
-<!-- Demo copy of a Tube Timer screen (generated from app/). -->
-<script>window.PARAMS={"until": Date.now()/1000+1500, "partyUntil": Date.now()/1000+1500, "reason": "That's 30 minutes in a row. Take a 30 minute break!", "daily": false, "songs": [{"id": "iOQ2RpKpLEU", "start": 165, "title": "Astronomia shuffle dance"}, {"id": "svROfqdeyFI", "start": 0, "title": "100 Phonk songs on piano"}], "primary": true};</script><meta charset="utf-8"><title>Get up!</title>
+<!-- Demo copy of a Tube Timer screen. Regenerate with app/make-demos.py -->
+<script>window.PARAMS={"until": Date.now()/1000+1500, "partyUntil": Date.now()/1000+1500, "reason": "That's 30 minutes in a row. Take a 30 minute break!", "daily": false, "songs": [{"id": "kOn-HdEg6AQ", "start": 0, "title": "Michael Jackson – Beat It"}, {"id": "yURRmWtbTbo", "start": 31, "title": "Michael Jackson – Don't Stop 'Til You Get Enough"}, {"id": "BsuEjAw5hg0", "start": 0, "title": "Michael Jackson – Thriller"}, {"id": "ISqzbbZVIiU", "start": 0, "title": "The Jackson 5 – ABC"}, {"id": "7Ya2U8XN_Zw", "start": 0, "title": "Mark Ronson ft. Bruno Mars – Uptown Funk"}, {"id": "AWXub7E5moM", "start": 0, "title": "Earth, Wind & Fire – September"}, {"id": "ZbZSe6N_BXs", "start": 0, "title": "Pharrell Williams – Happy"}, {"id": "0Ui-QzihJGo", "start": 0, "title": "Justin Timberlake – Can't Stop the Feeling!"}, {"id": "3GwjfUFyY6M", "start": 0, "title": "Kool & The Gang – Celebration"}, {"id": "fNFzfwLM72c", "start": 0, "title": "Bee Gees – Stayin' Alive"}, {"id": "CS9OO0S5w2k", "start": 0, "title": "Village People – YMCA"}, {"id": "hq3Q3FfJkK4", "start": 0, "title": "Kenny Loggins – Footloose"}, {"id": "iOQ2RpKpLEU", "start": 165, "title": "Astronomia shuffle dance"}, {"id": "svROfqdeyFI", "start": 0, "title": "100 Phonk songs on piano"}], "musicSeconds": 60, "muted": true, "primary": true};</script><meta charset="utf-8"><title>Get up!</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#1a0b2e;color:#fff;
@@ -44,7 +44,18 @@ h1{font-size:clamp(48px,9vw,120px);margin:0;letter-spacing:4px;color:#ffd000;
 #sub{font-size:clamp(16px,1.8vw,24px);color:#fff;text-shadow:2px 2px 0 #000}
 #tv{position:fixed;top:16px;right:16px;z-index:11;background:#222;border:6px solid #111;box-shadow:6px 6px 0 #000;padding:8px 8px 4px}
 #tv iframe{display:block;width:min(26vw,320px);aspect-ratio:16/9;border:0;pointer-events:none}
-#tv div{font-size:13px;text-align:center;padding:4px 0 0;color:#ffd000}
+#tv .now{font-size:13px;text-align:center;padding:6px 0 2px;color:#ffd000;max-width:min(26vw,320px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tv .ctl{display:flex;gap:6px;justify-content:center;align-items:center;padding:4px 0 6px}
+#tv button,#parentBtn,.pb button{font:700 13px "Menlo",monospace;padding:6px 10px;border:3px solid #111;background:#ffd000;color:#111;cursor:pointer;box-shadow:3px 3px 0 #000}
+#tv .left{font-size:12px;color:#fff}
+#parentBtn{position:fixed;left:14px;bottom:14px;z-index:30;background:#ffffffcc;font-size:12px;box-shadow:2px 2px 0 #000}
+#parentBox{position:fixed;inset:0;z-index:40;background:#000a;display:flex;align-items:center;justify-content:center}
+#parentBox[hidden]{display:none}
+.pb{background:#fff;color:#111;border:5px solid #111;box-shadow:8px 8px 0 #000;padding:22px;display:flex;flex-direction:column;gap:10px;min-width:300px;text-align:center}
+.pb b{font-size:20px}
+.pb input{font:700 28px "Menlo",monospace;text-align:center;letter-spacing:10px;padding:8px;border:3px solid #111}
+.pb #pinMsg{min-height:18px;color:#c00;font-weight:700}
+.pb button.alt{background:#eee}
 
 .chick{position:fixed;z-index:4;animation:dance .484s ease-in-out infinite alternate}
 .chick.alt{animation-delay:-.242s}
@@ -63,7 +74,18 @@ h1{font-size:clamp(48px,9vw,120px);margin:0;letter-spacing:4px;color:#ffd000;
 </style></head>
 <body>
 <div id="disco"></div><div id="vignette"></div>
-<div id="tv" hidden><iframe allow="autoplay; encrypted-media"></iframe><div>📺 DANCE PARTY 🕺</div></div>
+<div id="tv" hidden><iframe allow="autoplay; encrypted-media"></iframe>
+  <div class="now">🎵 <span id="songTitle">Dance party</span></div>
+  <div class="ctl"><button id="playBtn">⏸ Pause</button><button id="nextBtn">⏭ Next</button><span class="left" id="musicLeft"></span></div></div>
+<button id="parentBtn">🔒 Parent</button>
+<div id="parentBox" hidden><div class="pb">
+  <b>🔒 Parent PIN</b>
+  <input id="pinIn" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
+  <div id="pinMsg"></div>
+  <button data-act="end">End this break</button>
+  <button data-act="off">Turn Tube Timer off</button>
+  <button data-act="cancel" class="alt">Cancel</button>
+</div></div>
 
 <div id="stage">
   <h1>TIME'S UP!</h1>
@@ -178,16 +200,79 @@ function tick(){
 }
 tick(); setInterval(tick, 1000);
 
-// ---------- music: your two songs via YouTube's player; chiptune if offline ----------
-if(P.primary && navigator.onLine && P.songs.length){
-  const [a, ...rest] = P.songs;
-  const list = rest.map(s=>s.id).concat(a.id).join(",");
-  document.querySelector("#tv iframe").src =
-    `https://www.youtube-nocookie.com/embed/${a.id}?autoplay=1&start=${a.start||0}&playlist=${list}&loop=1&controls=0&rel=0&playsinline=1`;
-  document.getElementById("tv").hidden = false;
-} else if(P.primary){
-  startAudio();
+// ---------- music: one song from the playlist, about 60 seconds, with Pause / Next ----------
+const $ = id => document.getElementById(id);
+const send = (kind, value) => { try { window.webkit.messageHandlers.msg.postMessage({kind, value}); } catch(e) { console.log(kind, value); } };
+const frame = document.querySelector("#tv iframe");
+let musicLeft = P.musicSeconds || 60, playing = false, songIdx = 0, chip = null;
+const useYouTube = navigator.onLine && P.songs.length > 0;
+function ytCmd(func){ try { frame.contentWindow.postMessage(JSON.stringify({event: "command", func, args: []}), "*"); } catch(e) {} }
+function loadSong(i){
+  const s = P.songs[i % P.songs.length]; songIdx = i;
+  frame.src = `https://www.youtube-nocookie.com/embed/${s.id}?autoplay=1&start=${s.start||0}&controls=0&rel=0&playsinline=1&enablejsapi=1${P.muted ? "&mute=1" : ""}`;
+  $("songTitle").textContent = s.title || "Dance party";
+  playing = true; renderMusic();
 }
+function setPlaying(on){
+  playing = on;
+  if (useYouTube) ytCmd(on ? "playVideo" : "pauseVideo");
+  else if (chip) on ? chip.resume() : chip.suspend();
+  renderMusic();
+}
+function renderMusic(){
+  $("playBtn").textContent = playing ? "⏸ Pause" : "▶ Play";
+  $("musicLeft").textContent = musicLeft > 0 ? `${musicLeft}s` : "";
+}
+// Skip songs YouTube won't play here (some labels block embedding); fall back to the chiptune if none work.
+let failures = 0;
+window._ytLog = [];
+frame.addEventListener("load", () => {
+  try { frame.contentWindow.postMessage(JSON.stringify({event: "listening", id: 1, channel: "widget"}), "*"); } catch(e) {}
+});
+window.addEventListener("message", e => {
+  if (!/youtube/.test(String(e.origin))) return;
+  let d; try { d = JSON.parse(e.data); } catch(_) { return; }
+  const song = P.songs[songIdx % P.songs.length];
+  if (d.event === "onError") {
+    window._ytLog.push({id: song.id, error: d.info});
+    if (++failures >= P.songs.length) {         // nothing plays: use the built-in beat instead
+      frame.remove(); chip = startAudio(); $("songTitle").textContent = "Chicken chiptune"; $("nextBtn").hidden = true;
+    } else {
+      loadSong(songIdx + 1);
+    }
+  } else if (d.event === "infoDelivery" && d.info && d.info.playerState === 1) {
+    if (!window._ytLog.some(x => x.id === song.id && x.ok)) window._ytLog.push({id: song.id, ok: true});
+  }
+});
+
+if (P.primary) {
+  $("tv").hidden = false;
+  if (useYouTube) loadSong(0);
+  else { frame.remove(); chip = startAudio(); playing = true; $("songTitle").textContent = "Chicken chiptune"; $("nextBtn").hidden = true; renderMusic(); }
+  $("playBtn").onclick = () => { if (musicLeft > 0) setPlaying(!playing); };
+  $("nextBtn").onclick = () => { if (musicLeft > 0 && useYouTube) loadSong(songIdx + 1); };
+  setInterval(() => {                        // the music only plays for about a minute, then it's time to move
+    if (!playing || musicLeft <= 0) return;
+    musicLeft--;
+    if (musicLeft === 0) {
+      setPlaying(false);
+      $("songTitle").textContent = "Music's over. Keep moving! 🏃";
+      $("playBtn").hidden = $("nextBtn").hidden = true;
+    }
+    renderMusic();
+  }, 1000);
+} else {
+  $("parentBtn").hidden = true;
+}
+
+// ---------- parent PIN: end the break or turn Tube Timer off ----------
+$("parentBtn").onclick = () => { $("parentBox").hidden = false; $("pinMsg").textContent = ""; $("pinIn").value = ""; $("pinIn").focus(); };
+document.querySelectorAll(".pb button").forEach(b => b.onclick = () => {
+  if (b.dataset.act === "cancel") { $("parentBox").hidden = true; return; }
+  send("parent", JSON.stringify({pin: $("pinIn").value, action: b.dataset.act}));
+});
+$("pinIn").addEventListener("keydown", e => { if (e.key === "Enter") document.querySelector('.pb button[data-act="end"]').click(); });
+window.parentResult = (ok, msg) => { if (!ok) { $("pinMsg").textContent = msg; $("pinIn").value = ""; $("pinIn").focus(); } };
 
 function startAudio(){
   let ctx = null, master = null;
@@ -218,6 +303,7 @@ function startAudio(){
     }
   }, 50);
   if(ctx.state === "suspended") ctx.resume();
+  return ctx;
 }
 </script>
 </body></html>

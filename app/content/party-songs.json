@@ -1,15 +1,19 @@
 {
-  "_help": "Songs for the 'Get up!' dance party (YouTube video IDs; 'start' is seconds into the video). These videos are always allowed.",
+  "_help": "Songs for the 'Get up!' dance party. Each break plays one song (a different one each time, in random order) for about 60 seconds; kids can Pause or skip to the Next one. 'id' is the YouTube video ID, 'start' is seconds into the video. Use videos that allow embedding (official 'Audio' or '- Topic' versions start the music right away). These videos are always allowed.",
   "songs": [
-    {
-      "id": "iOQ2RpKpLEU",
-      "start": 165,
-      "title": "Astronomia shuffle dance"
-    },
-    {
-      "id": "svROfqdeyFI",
-      "start": 0,
-      "title": "100 Phonk songs on piano"
-    }
+    {"id": "kOn-HdEg6AQ", "start": 0, "title": "Michael Jackson – Beat It"},
+    {"id": "yURRmWtbTbo", "start": 31, "title": "Michael Jackson – Don't Stop 'Til You Get Enough"},
+    {"id": "BsuEjAw5hg0", "start": 0, "title": "Michael Jackson – Thriller"},
+    {"id": "ISqzbbZVIiU", "start": 0, "title": "The Jackson 5 – ABC"},
+    {"id": "7Ya2U8XN_Zw", "start": 0, "title": "Mark Ronson ft. Bruno Mars – Uptown Funk"},
+    {"id": "AWXub7E5moM", "start": 0, "title": "Earth, Wind & Fire – September"},
+    {"id": "ZbZSe6N_BXs", "start": 0, "title": "Pharrell Williams – Happy"},
+    {"id": "0Ui-QzihJGo", "start": 0, "title": "Justin Timberlake – Can't Stop the Feeling!"},
+    {"id": "3GwjfUFyY6M", "start": 0, "title": "Kool & The Gang – Celebration"},
+    {"id": "fNFzfwLM72c", "start": 0, "title": "Bee Gees – Stayin' Alive"},
+    {"id": "CS9OO0S5w2k", "start": 0, "title": "Village People – YMCA"},
+    {"id": "hq3Q3FfJkK4", "start": 0, "title": "Kenny Loggins – Footloose"},
+    {"id": "iOQ2RpKpLEU", "start": 165, "title": "Astronomia shuffle dance"},
+    {"id": "svROfqdeyFI", "start": 0, "title": "100 Phonk songs on piano"}
   ]
 }

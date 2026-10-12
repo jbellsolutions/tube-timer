@@ -10,6 +10,7 @@ let kExtraSec: Double = 10 * 60
 let kReshowSec: Double = 5 * 60  // party length when YouTube is reopened during a lock
 let kEarnMinutes = 20          // fun minutes earned per video + quiz
 let kMaxEarnsPerDay = 2
+let kPartyMusicSeconds = 60    // dance-party music plays about a minute, then it's time to move
 
 // MARK: - Daily schedule (the Mac's local time; minutes after midnight, set in the app)
 
@@ -628,6 +629,7 @@ final class Limiter: ObservableObject {
             "reason": preview ? "This is just a preview. It closes by itself in 20 seconds." : lockReason,
             "daily": preview ? false : lockIsDaily,
             "songs": content.songs.shuffled(),
+            "musicSeconds": kPartyMusicSeconds,
         ])
     }
 
@@ -680,6 +682,33 @@ final class Limiter: ObservableObject {
         if earnLog.count > 20 { earnLog.removeLast() }
         save(); changed()
         speak("You earned \(kEarnMinutes) more minutes of fun time!")
+    }
+
+    private var pinFails = 0
+    private var pinBlockedUntil: Double = 0
+
+    /// The 🔒 Parent button on a lockout screen: check the PIN, then end the break / close the screen, or turn Tube Timer off.
+    func parentAction(_ value: String, from overlay: Overlay) {
+        guard let data = value.data(using: .utf8),
+              let o = try? JSONSerialization.jsonObject(with: data) as? [String: String] else { return }
+        if now < pinBlockedUntil {
+            overlay.evalJS("parentResult(false, 'Too many wrong tries. Wait a few minutes.')"); return
+        }
+        guard !pin.isEmpty, o["pin"] == pin else {
+            pinFails += 1
+            if pinFails >= 3 { pinFails = 0; pinBlockedUntil = now + 5 * 60 }
+            overlay.evalJS("parentResult(false, 'Wrong PIN')"); return
+        }
+        pinFails = 0
+        if o["action"] == "off" {
+            enabled = false                 // hides every overlay; turn back on from the controls
+        } else if overlay === party {
+            lockedUntil = 0; lockReason = ""; lockIsDaily = false
+            party.hide()
+        } else {
+            overlay.hide()
+        }
+        save(); changed()
     }
 
     /// He said "yes, use my fun time" on the ask screen.
@@ -1008,6 +1037,10 @@ final class Overlay: NSObject, WKScriptMessageHandler {
         }
         windows = []
         updateKiosk()
+    }
+
+    func evalJS(_ js: String) {
+        for w in windows { (w.contentView as? WKWebView)?.evaluateJavaScript(js) }
     }
 
     func userContentController(_ u: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -1405,7 +1438,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 4) { earn.hide() }  // let the 🎉 screen show
             }
         }
+        party.onMessage = { kind, value in
+            if kind == "parent" { m.parentAction(value, from: party) }
+        }
         nope.onMessage = { kind, value in
+            if kind == "parent" { m.parentAction(value, from: nope) }
             if kind == "fun" { m.approveFun() }
             if kind == "earn" { m.showEarn() }
             if kind == "pick", let url = URL(string: "https://www.youtube.com/watch?v=\(value)") { m.pickFromNope(url) }
