@@ -4,7 +4,7 @@ Canonical website: https://tube-timer.up.railway.app/
 Project: tube-timer (81852319-a5f9-4536-a252-f20ce29a3a56)
 Service: tube-timer (9544dddf-c3c4-4fd5-bb6f-9f7e51a1b1f2)
 
-Serve docs/ with the root Dockerfile. Railway service configuration uses the Dockerfile builder, /healthz health check (60-second timeout), one replica and three on-failure retries. Domain routes to port 8080. Nginx reads Railway PORT; its default is 8080. No database or app credentials are needed for this public site. No macOS app runs on Railway.
+Serve docs/ with the root Dockerfile. Railway service configuration uses the Dockerfile builder, /index.html health check (60-second timeout), one replica and three on-failure retries. Domain routes to port 8080. Nginx reads Railway PORT; its default is 8080. No database or app credentials are needed for this public site. No macOS app runs on Railway.
 
 Connect the GitHub source jbellsolutions/tube-timer, branch main, for future autodeploys. Deployment must pass health checks before retiring prior hosting. GitHub Pages is disabled after Railway is confirmed live; GitHub source and release assets remain available.
 
