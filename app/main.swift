@@ -7,6 +7,7 @@ import WebKit
 let kGapSec: Double = 5 * 60     // this long away from YouTube starts a fresh sitting
 let kWarnSec: Double = 60        // "1 minute left" warning
 let kExtraSec: Double = 10 * 60
+let kKidExtrasPerDay = 2         // the kid PIN can add 10 minutes this many times a day
 let kReshowSec: Double = 5 * 60  // party length when YouTube is reopened during a lock
 let kEarnMinutes = 20          // fun minutes earned per video + quiz
 let kMaxEarnsPerDay = 2
@@ -152,6 +153,15 @@ let allowedTopics = [
     // school subjects
     "math", "maths", "addition", "subtraction", "multiplication", "division", "fraction", "counting", "number bond",
     "reading", "read aloud", "read by", "read along", "storytime", "phonics", "spelling", "writing", "handwriting", "alphabet", "grammar",
+]
+
+/// What If and real space exploration count as science, even when the title sounds dramatic
+/// ("What if you fell into a black hole?", "Could you survive on Mars?").
+let spaceScienceTopics = [
+    "what if", "space", "planet", "solar system", "astronaut", "nasa", "rocket", "galaxy", "galaxies", "universe",
+    "black hole", "moon", "mars", "jupiter", "saturn", "venus", "mercury", "neptune", "uranus", "pluto", "comet",
+    "asteroid", "meteor", "nebula", "star", "astronomy", "telescope", "spacecraft", "satellite", "space station",
+    "exoplanet", "big bang", "sun",
 ]
 
 /// Version 2: anything about video games is off-limits (no gameplay, POV, Let's Plays, game channels).
@@ -307,7 +317,8 @@ genuinely educational or tutorial quality, at a level right for a 6-7 year old, 
 - paper airplanes (how to fold and fly them)
 - drawing and arts & crafts lessons (e.g. Art for Kids Hub, how-to-draw, origami)
 - learning piano or another real skill, taught as a lesson or tutorial (e.g. Hoffman Academy)
-- science explained (e.g. Science Max, SciShow Kids), including space and "What If" science
+- science explained (e.g. Science Max, SciShow Kids), including "What If" videos and exploring space \
+(planets, stars, black holes, astronauts, rockets)
 - school subjects: math, reading, writing, spelling, phonics
 
 Everything else is blocked, including: any entertainment (even gentle cartoons, vlogs, toy or preschool shows like \
@@ -343,7 +354,7 @@ func decideClassify(_ v: VideoInfo, key: String, model: String, done: @escaping 
             "type": "noul",
             "instructions": "Is the video in `video` genuinely educational or tutorial content, right for a 6-7 year old, in one of the parent's allowed areas? Judge from its title, channel, category, tags and description.",
             "criteria": [
-                "true": "Yes: a real lesson, tutorial or explanation for a young child about paper airplanes; drawing or arts and crafts (like Art for Kids Hub or origami); learning piano or another skill (like Hoffman Academy); science explained, including space and What If science (like Science Max or SciShow Kids); or math, reading, writing, spelling or phonics.",
+                "true": "Yes: a real lesson, tutorial or explanation for a young child about paper airplanes; drawing or arts and crafts (like Art for Kids Hub or origami); learning piano or another skill (like Hoffman Academy); science explained, including What If videos and exploring space (planets, stars, black holes, astronauts, rockets) (like Science Max, SciShow Kids or What If); or math, reading, writing, spelling or phonics.",
                 "false": "No: any entertainment (cartoons, vlogs, toy or preschool shows like Blippi, music videos or performances that aren't lessons), anything about video games, challenges, pranks, reactions, flashy or overstimulating content, anything above a 6-7 year old's level, or anything scary or mean.",
             ],
         ] as [String: Any]],
@@ -451,6 +462,11 @@ func chatClassify(_ v: VideoInfo, key: String, model: String, done: @escaping (V
         }
         DispatchQueue.main.async { done(kind, reason) }
     }.resume()
+}
+
+/// A JavaScript string literal for text passed into a page.
+func jsString(_ s: String) -> String {
+    (try? String(data: JSONSerialization.data(withJSONObject: [s]), encoding: .utf8)).flatMap { $0 }.map { String($0.dropFirst().dropLast()) } ?? "''"
 }
 
 func fmt(_ secs: Double) -> String {
@@ -579,6 +595,10 @@ final class Limiter: ObservableObject {
     var dailyMinToday: Int { dailyMin }       // version 2: weekends are the same as school days
     var sessionMinToday: Int { sessionMin }
     @Published var pin: String { didSet { d.set(pin, forKey: "pin") } }
+    @Published var kidPin: String { didSet { d.set(kidPin, forKey: "kidPin") } }
+    @Published var kidExtrasToday: Int = 0
+    @Published var actionMessage = ""          // confirmation shown under the +10 / Reset buttons
+    var bedtimePassUntil: Double = 0           // +10 during YouTube-off hours gives a short pass
     @Published var funSec: Double
     @Published var watchingFun = false
     var approvedFun: Set<String>   // entertainment videos he chose to spend fun time on today
@@ -635,6 +655,9 @@ final class Limiter: ObservableObject {
         weekendDailyMin = d.integer(forKey: "weekendDailyMin")
         weekendSessionMin = d.integer(forKey: "weekendSessionMin")
         pin = d.string(forKey: "pin") ?? ""
+        kidPin = d.string(forKey: "kidPin") ?? "1234"
+        kidExtrasToday = d.integer(forKey: "kidExtrasToday")
+        bedtimePassUntil = d.double(forKey: "bedtimePassUntil")
         funSec = d.double(forKey: "funSec")
         approvedFun = Set(d.stringArray(forKey: "approvedFun") ?? [])
         funWarned = d.bool(forKey: "funWarned")
@@ -723,7 +746,7 @@ final class Limiter: ObservableObject {
         let running = runningBrowsers()
 
         // YouTube is off overnight (default 9 PM–6 AM), no matter what.
-        if inYouTubeOffHours {
+        if inYouTubeOffHours && t >= bedtimePassUntil {
             let end = offHoursEnd()
             if lockedUntil < end {
                 lockedUntil = end; lockIsDaily = false
@@ -884,13 +907,26 @@ final class Limiter: ObservableObject {
         if now < pinBlockedUntil {
             overlay.evalJS("parentResult(false, 'Too many wrong tries. Wait a few minutes.')"); return
         }
+        if o["pin"] == kidPin && !kidPin.isEmpty && o["pin"] != pin {
+            pinFails = 0
+            if o["action"] == "kid10" {
+                let msg = kidExtra()
+                if kidExtrasToday > 0 && msg.hasPrefix("+10") { banner.show("🧒 " + msg) }
+                else { overlay.evalJS("parentResult(false, \(jsString(msg)))") }
+            } else {
+                overlay.evalJS("parentResult(false, 'The kid PIN can only add 10 minutes.')")
+            }
+            return
+        }
         guard !pin.isEmpty, o["pin"] == pin else {
             pinFails += 1
             if pinFails >= 3 { pinFails = 0; pinBlockedUntil = now + 5 * 60 }
             overlay.evalJS("parentResult(false, 'Wrong PIN')"); return
         }
         pinFails = 0
-        if o["action"] == "off" {
+        if o["action"] == "kid10" {
+            addExtra()                      // parent PIN: +10 with no daily limit
+        } else if o["action"] == "off" {
             enabled = false                 // hides every overlay; turn back on from the controls
         } else if overlay === party {
             lockedUntil = 0; lockReason = ""; lockIsDaily = false
@@ -927,20 +963,43 @@ final class Limiter: ObservableObject {
         }
     }
 
-    /// Unlocks and guarantees at least 10 more minutes in both the sitting and the day.
+    /// Unlocks and adds 10 minutes to today and to this sitting. During YouTube-off hours it's a 10-minute pass.
     func addExtra() {
+        let t = now
         lockedUntil = 0; lockReason = ""; lockIsDaily = false; warned = false
-        if dailySec + kExtraSec > dailyLimit { dailyBonus += dailySec + kExtraSec - dailyLimit }
-        if sessionSec + kExtraSec > sessionLimit { sessionBonus += sessionSec + kExtraSec - sessionLimit }
-        party.hide()
+        dailyBonus = max(dailyBonus, dailySec - Double(dailyMinToday * 60)) + kExtraSec      // also covers going over
+        sessionBonus = max(sessionBonus, sessionSec - Double(sessionMinToday * 60)) + kExtraSec
+        if inYouTubeOffHours { bedtimePassUntil = max(bedtimePassUntil, t) + kExtraSec }
+        party.hide(); nope.hide()
+        flash("✅ Added 10 minutes. \(fmt(timeLeft)) left now.")
         save(); changed()
+    }
+
+    /// The kid PIN: +10 minutes, twice a day. Returns a message for the kid.
+    @discardableResult
+    func kidExtra() -> String {
+        guard kidExtrasToday < kKidExtrasPerDay else {
+            return "You already used your \(kKidExtrasPerDay) extra 10 minutes today."
+        }
+        kidExtrasToday += 1
+        addExtra()
+        return "+10 minutes! (\(kKidExtrasPerDay - kidExtrasToday) left today)"
+    }
+
+    private func flash(_ text: String) {
+        actionMessage = text
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            if self?.actionMessage == text { self?.actionMessage = "" }
+        }
     }
 
     func resetToday() {
         dailySec = 0; sessionSec = 0; dailyBonus = 0; sessionBonus = 0
         funSec = 0; approvedFun = []; funWarned = false; earnedToday = 0
         lockedUntil = 0; lockReason = ""; lockIsDaily = false; warned = false
+        bedtimePassUntil = 0
         party.hide(); nope.hide()
+        flash("✅ Today's time is reset. \(fmt(timeLeft)) left.")
         save(); changed()
     }
 
@@ -973,6 +1032,7 @@ final class Limiter: ObservableObject {
         // be paper airplanes, drawing/crafts, piano or a skill tutorial, science/space/What If, or a school subject.
         let titleAndChannel = v.title + " | " + v.channel
         if v.category == "Gaming" || matchesAny(titleAndChannel, gameTopics) { return .blocked }
+        if matchesAny(v.title, spaceScienceTopics) && !matchesAny(titleAndChannel, junkTopics) { return .learning }
         if matchesAny(titleAndChannel, junkTopics + overstimTopics) || looksOverstimulating(v.title) { return .blocked }
         if matchesAny(v.title, allowedTopics + list(allowTopics)) { return .learning }
         return .blocked
@@ -1059,7 +1119,7 @@ final class Limiter: ObservableObject {
         let today = f.string(from: Date())
         guard day != today else { return }
         day = today; dailySec = 0; dailyBonus = 0
-        funSec = 0; approvedFun = []; funWarned = false; earnedToday = 0
+        funSec = 0; approvedFun = []; funWarned = false; earnedToday = 0; kidExtrasToday = 0
         if lockIsDaily { lockedUntil = 0; lockReason = ""; lockIsDaily = false }
     }
 
@@ -1075,6 +1135,7 @@ final class Limiter: ObservableObject {
             "lastWatch": lastWatch, "day": day, "warned": warned,
             "funSec": funSec, "approvedFun": Array(approvedFun), "funWarned": funWarned,
             "earnedToday": earnedToday, "earnLog": earnLog,
+            "kidExtrasToday": kidExtrasToday, "bedtimePassUntil": bedtimePassUntil,
         ]
         vals.forEach { d.set($1, forKey: $0) }
     }
@@ -1538,6 +1599,7 @@ struct ControlsView: View {
                 Spacer()
                 Button("Reset today") { m.resetToday() }
             }
+            if !m.actionMessage.isEmpty { Text(m.actionMessage).foregroundColor(.green).font(.callout) }
             HStack {
                 Text("Preview:").foregroundColor(.secondary)
                 Button("Party") { m.showParty(preview: true) }
@@ -1551,6 +1613,12 @@ struct ControlsView: View {
                     .font(.caption).foregroundColor(.secondary)
             }
             Toggle("Open automatically when I log in", isOn: Binding(get: { login }, set: { setOpenAtLogin($0); login = $0 }))
+            VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Kid PIN:")
+                TextField("1234", text: $m.kidPin).frame(width: 70)
+                Text("+10 min, \(kKidExtrasPerDay)× a day (used \(m.kidExtrasToday) today)").font(.caption).foregroundColor(.secondary)
+            }
             HStack {
                 Text("Parent PIN:")
                 SecureField("new 4 digits", text: $newPin).frame(width: 110)
@@ -1560,6 +1628,7 @@ struct ControlsView: View {
                     newPin = ""
                 }
                 Text(pinMsg).font(.caption).foregroundColor(.secondary)
+            }
             }
             Spacer()
         }
@@ -1630,6 +1699,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem!
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        if CommandLine.arguments.contains("--self-test") { selfTest(); exit(0) }
         migrateFromOldName()
         if !UserDefaults.standard.bool(forKey: "didFirstLaunch") {
             UserDefaults.standard.set(true, forKey: "didFirstLaunch")
@@ -1702,6 +1772,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(.separator())
         item("Open Controls…", #selector(showControls))
         item("➕ Give 10 more minutes", #selector(addExtra))
+        item("🧒 Kid PIN: +10 minutes (\(max(0, kKidExtrasPerDay - m.kidExtrasToday)) left today)", #selector(kidAddExtra))
         item(m.enabled ? "Turn Monitor Off" : "Turn Monitor On", #selector(toggleEnabled))
         menu.addItem(.separator())
         item("Quit Tube Timer", #selector(quit))
@@ -1729,6 +1800,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func addExtra() { requirePIN { Limiter.shared.addExtra() } }
+
+    /// Developer check of +10, the kid PIN, Reset and the bedtime pass (run with --self-test; back up settings first).
+    func selfTest() {
+        let m = Limiter.shared, d = UserDefaults.standard
+        func line(_ s: String) { print(s); fflush(stdout) }
+        let t0 = m.timeLeft
+        m.addExtra()
+        line("+10:        \(fmt(t0)) -> \(fmt(m.timeLeft))  (\(m.timeLeft - t0 >= 599 ? "PASS" : "FAIL"))")
+        for i in 1...3 { line("kid +10 #\(i): \(m.kidExtra())") }
+        line("kid extras used: \(m.kidExtrasToday)  (\(m.kidExtrasToday == 2 ? "PASS" : "FAIL"))")
+        m.dailySec = 3000; m.sessionSec = 1000
+        m.resetToday()
+        line("reset:      used \(fmt(m.dailySec)), left \(fmt(m.timeLeft))  (\(m.dailySec == 0 && m.timeLeft >= 1799 ? "PASS" : "FAIL"))")
+        let mins = minutesNow()
+        d.set((mins + 1440 - 5) % 1440, forKey: "offStart"); d.set((mins + 60) % 1440, forKey: "offEnd")
+        line("bedtime now? \(inYouTubeOffHours)")
+        m.addExtra()
+        let pass = m.bedtimePassUntil - m.now
+        line("bedtime +10 pass: \(fmt(pass))  (\(inYouTubeOffHours && pass > 590 ? "PASS" : "FAIL"))")
+    }
+
+    /// Kid PIN from the menu bar: +10 minutes, twice a day.
+    @objc func kidAddExtra() {
+        let m = Limiter.shared
+        NSApp.activate(ignoringOtherApps: true)
+        let a = NSAlert()
+        a.messageText = "🧒 Kid PIN"
+        a.informativeText = "Enter your kid PIN for 10 more minutes (\(max(0, kKidExtrasPerDay - m.kidExtrasToday)) left today)."
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 180, height: 24))
+        a.accessoryView = field
+        a.addButton(withTitle: "OK")
+        a.addButton(withTitle: "Cancel")
+        a.window.initialFirstResponder = field
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        let r = NSAlert()
+        if field.stringValue == m.kidPin && !m.kidPin.isEmpty {
+            r.messageText = m.kidExtra()
+        } else {
+            r.messageText = "Wrong kid PIN 🙅"
+        }
+        r.runModal()
+    }
     @objc func toggleEnabled() { requirePIN { Limiter.shared.enabled.toggle() } }
     @objc func quit() { requirePIN { NSApp.terminate(nil) } }
 }

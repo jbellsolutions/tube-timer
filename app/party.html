@@ -17,11 +17,12 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden;cursor:default;us
 .pb button.alt{background:#eee}
 </style></head>
 <body>
-<button id="parentBtn">🔒 Parent</button>
+<button id="parentBtn">🔒 PIN</button>
 <div id="parentBox" hidden><div class="pb">
-  <b>🔒 Parent PIN</b>
+  <b>🔒 Enter a PIN</b>
   <input id="pinIn" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
   <div id="pinMsg"></div>
+  <button data-act="kid10">🧒 +10 minutes</button>
   <button data-act="end">End this break</button>
   <button data-act="off">Turn Tube Timer off</button>
   <button data-act="cancel" class="alt">Cancel</button>
@@ -38,7 +39,7 @@ document.querySelectorAll(".pb button").forEach(b => b.onclick = () => {
   if (b.dataset.act === "cancel") { $("parentBox").hidden = true; return; }
   send("parent", JSON.stringify({pin: $("pinIn").value, action: b.dataset.act}));
 });
-$("pinIn").addEventListener("keydown", e => { if (e.key === "Enter") document.querySelector('.pb button[data-act="end"]').click(); });
+$("pinIn").addEventListener("keydown", e => { if (e.key === "Enter") document.querySelector('.pb button[data-act="kid10"]').click(); });
 window.parentResult = (ok, msg) => { if (!ok) { $("pinMsg").textContent = msg; $("pinIn").value = ""; $("pinIn").focus(); } };
 
 // ---------- music: a built-in disco groove for about a minute, then it fades out ----------
