@@ -318,7 +318,8 @@ Answer "learning" only for clear educational/tutorial content in the list above;
 "blocked". Give a short, kid-friendly reason (under 15 words).
 """
 
-/// Asks Claude to classify a video. Calls back on the main thread with nil if anything goes wrong.
+/// Asks Claude Haiku to classify a video. An OpenRouter key (sk-or-…) goes through OpenRouter; an Anthropic key
+/// (sk-ant-…) goes straight to Anthropic. Calls back on the main thread with nil if anything goes wrong.
 func aiClassify(_ v: VideoInfo, key: String, done: @escaping (VideoKind?, String) -> Void) {
     let video = """
     Title: \(v.title)
@@ -327,47 +328,63 @@ func aiClassify(_ v: VideoInfo, key: String, done: @escaping (VideoKind?, String
     Tags: \(v.tags.prefix(400))
     Description: \(v.description)
     """
-    let body: [String: Any] = [
-        "model": "claude-opus-5-5",
-        "max_tokens": 2048,
-        "fallbacks": "default",
-        "system": aiRules,
-        "messages": [["role": "user", "content": video]],
-        "output_config": [
-            "effort": "low",
-            "format": [
-                "type": "json_schema",
-                "schema": [
-                    "type": "object",
-                    "properties": [
-                        "verdict": ["type": "string", "enum": ["learning", "blocked"]] as [String: Any],
-                        "reason": ["type": "string"],
-                    ],
-                    "required": ["verdict", "reason"],
-                    "additionalProperties": false,
-                ] as [String: Any],
-            ] as [String: Any],
-        ] as [String: Any],
+    let schema: [String: Any] = [
+        "type": "object",
+        "properties": [
+            "verdict": ["type": "string", "enum": ["learning", "blocked"]] as [String: Any],
+            "reason": ["type": "string"],
+        ],
+        "required": ["verdict", "reason"],
+        "additionalProperties": false,
     ]
-    var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!, timeoutInterval: 30)
+    let openRouter = key.hasPrefix("sk-or-")
+    var req: URLRequest
+    let body: [String: Any]
+    if openRouter {
+        req = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!, timeoutInterval: 30)
+        req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        req.setValue("https://github.com/jbellsolutions/tube-timer", forHTTPHeaderField: "HTTP-Referer")
+        req.setValue("Tube Timer", forHTTPHeaderField: "X-Title")
+        body = [
+            "model": "anthropic/claude-haiku-5.5",
+            "max_tokens": 1024,
+            "reasoning": ["effort": "low"],
+            "messages": [["role": "system", "content": aiRules], ["role": "user", "content": video]],
+            "response_format": ["type": "json_schema",
+                                "json_schema": ["name": "verdict", "strict": true, "schema": schema] as [String: Any]] as [String: Any],
+        ]
+    } else {
+        req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!, timeoutInterval: 30)
+        req.setValue(key, forHTTPHeaderField: "x-api-key")
+        req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        body = [
+            "model": "claude-haiku-5-5",
+            "max_tokens": 1024,
+            "system": aiRules,
+            "messages": [["role": "user", "content": video]],
+            "output_config": ["effort": "low", "format": ["type": "json_schema", "schema": schema] as [String: Any]] as [String: Any],
+        ]
+    }
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "content-type")
-    req.setValue(key, forHTTPHeaderField: "x-api-key")
-    req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-    req.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
     req.httpBody = try? JSONSerialization.data(withJSONObject: body)
     URLSession.shared.dataTask(with: req) { data, _, _ in
         var kind: VideoKind?, reason = ""
-        if let data = data, let resp = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           resp["stop_reason"] as? String != "refusal",
-           let content = resp["content"] as? [[String: Any]],
-           let text = content.first(where: { $0["type"] as? String == "text" })?["text"] as? String,
-           let out = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] {
+        var text: String?
+        if let data = data, let resp = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if openRouter {
+                text = ((resp["choices"] as? [[String: Any]])?.first?["message"] as? [String: Any])?["content"] as? String
+            } else if resp["stop_reason"] as? String != "refusal" {
+                text = (resp["content"] as? [[String: Any]])?.first(where: { $0["type"] as? String == "text" })?["text"] as? String
+            }
+        }
+        // The answer is JSON; take the {...} part in case anything else came with it.
+        if let t = text, let a = t.firstIndex(of: "{"), let b = t.lastIndex(of: "}"),
+           let out = try? JSONSerialization.jsonObject(with: Data(t[a...b].utf8)) as? [String: Any] {
             reason = out["reason"] as? String ?? ""
             switch out["verdict"] as? String {
             case "learning": kind = .learning
-            case "fun": kind = .fun
-            case "blocked": kind = .blocked
+            case "blocked", "fun": kind = .blocked
             default: break
             }
         }
@@ -1513,10 +1530,10 @@ struct ControlsView: View {
                 GroupBox(label: Text("🤖 Smart filter (optional)")) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(m.apiKey.isEmpty
-                             ? "Off. Using built-in word rules. Paste an Anthropic API key to let Claude judge each new video using your rules."
-                             : "On. Claude judges each new video the word rules can't settle (about half a cent per new video).")
+                             ? "Off. Using built-in word rules. Paste an OpenRouter key (or an Anthropic key) to let Claude Haiku judge each new video using your rules."
+                             : "On. Claude Haiku judges each new video the word rules can't settle (a tiny fraction of a cent per new video).")
                             .font(.caption).foregroundColor(.secondary)
-                        SecureField("Anthropic API key (sk-ant-…)", text: $m.apiKey)
+                        SecureField("OpenRouter key (sk-or-…) or Anthropic key (sk-ant-…)", text: $m.apiKey)
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
                 }
                 HStack {
