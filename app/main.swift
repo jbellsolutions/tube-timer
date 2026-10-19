@@ -138,6 +138,28 @@ let junkTopics = [
     "seconds vs", "minute vs", "$10,000", "$100,000", "$1,000,000", "wins $",
 ]
 
+/// Version 2: anything about video games is off-limits (no gameplay, POV, Let's Plays, game channels).
+let gameTopics = [
+    "minecraft", "roblox", "fortnite", "among us", "gameplay", "game play", "let's play", "lets play", "playthrough",
+    "walkthrough", "speedrun", "speedrunner", "gamer", "gaming", "video game", "videogame", "pov", "mod", "mods",
+    "modded", "bedwars", "skyblock", "pvp", "fnaf", "five nights", "poppy playtime", "rainbow friends", "banban",
+    "sonic", "mario", "pokemon", "zelda", "call of duty", "gta", "fall guys", "stumble guys", "brookhaven", "adopt me",
+    "toca boca", "geometry dash", "solar smash", "noob", "hacker", "admin commands", "one block", "herobrine",
+]
+/// Version 2: overstimulating / no-value signals (blocked, not fun time).
+let overstimTopics = [
+    "insane", "extreme", "craziest", "crazy", "wildest", "ytp", "youtube poop", "scream", "screaming", "survived",
+    "survive", "last to", "overnight in", "chaos", "nuke", "nuking", "destroying", "eating challenge", "unboxing",
+]
+/// Titles that shout: mostly capital letters, "!!", or a pile of emoji.
+func looksOverstimulating(_ title: String) -> Bool {
+    let letters = title.filter(\.isLetter)
+    let caps = letters.filter(\.isUppercase)
+    let emoji = title.unicodeScalars.filter { $0.properties.isEmojiPresentation }.count
+    return (letters.count >= 10 && Double(caps.count) / Double(letters.count) > 0.6)
+        || title.contains("!!") || title.contains("?!") || emoji >= 3
+}
+
 /// True if any term appears in `text` as a whole word/phrase (plural "s"/"es" allowed). Terms with symbols use plain contains.
 func matchesAny(_ text: String, _ terms: [String]) -> Bool {
     let lower = text.lowercased()
@@ -200,29 +222,88 @@ func fetchPage(_ url: String, _ done: @escaping (String) -> Void) {
     }.resume()
 }
 
+// MARK: - YouTube page cleanup (version 2)
+
+/// Hides the algorithm: suggestions, Shorts, end screens, comments, and any thumbnail from a blocked channel or with
+/// game / brain-rot words. Turns autoplay off and YouTube's Restricted Mode on. __RULES__ is filled in by the app.
+let youtubeCleanerJS = #"""
+(function(){
+  window.__ttRules = __RULES__;
+  try {  /* YouTube's own Restricted Mode: f2=8000000 in the PREF cookie (set once per tab) */
+    var m = document.cookie.match(/(?:^|; )PREF=([^;]*)/), pref = m ? decodeURIComponent(m[1]) : '';
+    if (pref.indexOf('f2=8000000') < 0 && !sessionStorage.getItem('ttRestricted')) {
+      sessionStorage.setItem('ttRestricted', '1');
+      pref = pref.replace(/(^|&)f2=[^&]*/g, '').replace(/^&/, '');
+      document.cookie = 'PREF=' + (pref ? pref + '&' : '') + 'f2=8000000; domain=.youtube.com; path=/; max-age=31536000';
+      location.reload(); return 'restricted';
+    }
+  } catch (e) {}
+  if (window.__ttV === 2) return 'ok';
+  window.__ttV = 2;
+  var st = document.createElement('style');
+  st.textContent = ['#related', 'ytd-watch-next-secondary-results-renderer', 'ytd-reel-shelf-renderer',
+    'ytd-rich-shelf-renderer', 'ytd-rich-section-renderer', 'ytd-reel-item-renderer', 'ytm-shorts-lockup-view-model',
+    'grid-shelf-view-model', '.ytp-endscreen-content', '.ytp-ce-element', '.ytp-pause-overlay', '.ytp-suggested-action',
+    '#comments', 'ytd-chips-shelf-with-video-shelf-renderer', 'yt-chip-cloud-renderer',
+    'ytd-guide-entry-renderer:has(a[title="Shorts"])', 'ytd-mini-guide-entry-renderer[aria-label="Shorts"]',
+    'ytd-guide-entry-renderer:has(a[href^="/feed/trending"])', 'ytd-guide-entry-renderer:has(a[href^="/gaming"])',
+    'ytd-guide-section-renderer:has(a[href^="/feed/explore"])',
+    /* ads and promos (they advertise games too) */
+    'ytd-ad-slot-renderer', 'ytd-search-pyv-renderer', 'ytd-in-feed-ad-layout-renderer', 'ytd-promoted-sparkles-web-renderer',
+    'ytd-promoted-video-renderer', 'ytd-display-ad-renderer', 'ytd-banner-promo-renderer', 'ytd-statement-banner-renderer',
+    '#masthead-ad', '#player-ads'].join(',') + '{display:none!important}';
+  document.documentElement.appendChild(st);
+  function bad(title, ch) {
+    var R = window.__ttRules, c = ch.toLowerCase();
+    if (R.channels.some(function (x) { return x && c.indexOf(x) >= 0; })) return true;
+    if (window.__ttRe && window.__ttRe.test(title + ' | ' + ch)) return true;
+    var L = title.replace(/[^A-Za-z]/g, ''), U = title.replace(/[^A-Z]/g, '');
+    return (L.length >= 10 && U.length / L.length > 0.6) || title.indexOf('!!') >= 0;
+  }
+  function sweep() {
+    var R = window.__ttRules, key = JSON.stringify(R.words);
+    if (window.__ttKey !== key) {
+      window.__ttKey = key;
+      var parts = R.words.map(function (w) { return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
+      window.__ttRe = new RegExp('\\b(?:' + parts.join('|') + ')(?:s|es)?\\b', 'i');
+    }
+    document.querySelectorAll('ytd-video-renderer, ytd-rich-item-renderer, ytd-compact-video-renderer, ' +
+      'ytd-grid-video-renderer, ytd-playlist-renderer, ytd-channel-renderer, ytd-radio-renderer, yt-lockup-view-model')
+      .forEach(function (el) {
+        var t = el.querySelector('#video-title, #video-title-link, .yt-lockup-metadata-view-model__title, #channel-title, h3');
+        var c = el.querySelector('ytd-channel-name, #channel-name, .yt-content-metadata-view-model__metadata-text');
+        var hide = bad(t ? t.textContent.trim() : '', c ? c.textContent.trim() : '') || !!el.querySelector('a[href^="/shorts/"]');
+        el.style.display = hide ? 'none' : '';
+      });
+    var auto = document.querySelector('.ytp-autonav-toggle-button[aria-checked="true"]');
+    if (auto) auto.click();
+  }
+  sweep(); setInterval(sweep, 800);
+  return 'installed';
+})()
+"""#
+
 // MARK: - Optional Claude AI judge (used only when the parent adds an Anthropic API key)
 
 let aiRules = """
-You screen YouTube videos for a parent. Their kid is in elementary/middle school. Classify one video.
+You screen YouTube videos for a parent of a young child. Judge everything by what is right for a 6-7 year old. \
+Classify one video.
 
-The parent's goals, in their words: let him be creative, have fun, search and look stuff up. Be open and liberal with \
-anything about space, science, earth, geology, math, reading, learning, quizzes, arts, crafts, drawing, paper airplanes, \
-creativity, piano, instruments, and really any music (including phonk and dance/shuffle songs). Cut out only two things: \
-videos that are inappropriate for his age, and purely passive, flashy entertainment with no value ("brain-rot").
+The parent's standard: the child should only see content that is learning, creative, calm, and builds a positive \
+worldview, or gentle, kind entertainment for little kids. Space, science, nature, animals, earth, math, reading, \
+stories, drawing, crafts, paper airplanes, building, music and piano are great.
 
 Verdicts:
-- "learning": real learning or creative value, even if the delivery is entertaining or YouTube files it under \
-Entertainment. Examples: a solar-system quiz, Solar Smash planet videos, "What If" science, Mark Rober, how-to-draw, \
-origami, paper airplanes, science experiments, engineering, nature/animals, history, any song or music video, piano covers.
-- "fun": purely passive, flashy entertainment with no real value. Examples: Brent Rivera / Ben Azelart / Cash & Nico / \
-Ben and Cam style vlogs and challenges, Minecraft or Roblox roleplay and skits ("secret room", "noob vs pro", "poor vs \
-rich", "100 days as..."), pranks, "24 hours in...", reaction videos, meme/brain-rot compilations. The kid gets a small \
-daily allowance of these.
-- "blocked": inappropriate for a young kid: romance/kissing/crush/dating gossip, sexual content, graphic violence or gore, \
-horror and jumpscares, strong language, dangerous stunts kids might copy.
+- "learning": real learning or creative value at a young child's level. Examples: SciShow Kids, Nat Geo Kids, \
+Science Max, Art for Kids Hub, read-alouds, simple science experiments, paper airplanes, music and piano.
+- "fun": gentle, kind, age-appropriate entertainment with a positive tone (for example calm cartoons for little kids).
+- "blocked": ANYTHING about video games (gameplay, POV, Let's Plays, Minecraft/Roblox/Fortnite, game channels, \
+game skits or parodies); overstimulating or flashy content (shouting, fast cuts, "INSANE/EXTREME", YTP, meme or \
+brain-rot compilations, pranks, challenges, "24 hours in...", vlogger channels like Ben Azelart, Brent Rivera, \
+Cash & Nico, Ben and Cam); anything above a 6-7 year old's level; anything scary, mean, romantic, or that \
+doesn't build a positive worldview.
 
-Be very relaxed on the learning side: if there is ANY learning, quiz, trivia, educational, or creative angle, choose \
-"learning", even if it's about Minecraft or games. Only pure no-value brain-rot is "fun". Give a short, kid-friendly reason (under 15 words).
+When in doubt between "fun" and "blocked", choose "blocked". Give a short, kid-friendly reason (under 15 words).
 """
 
 /// Asks Claude to classify a video. Calls back on the main thread with nil if anything goes wrong.
@@ -392,6 +473,7 @@ final class Limiter: ObservableObject {
     @Published var allowTopics: String { didSet { d.set(allowTopics, forKey: "allowTopics") } }
     @Published var blockTopics: String { didSet { d.set(blockTopics, forKey: "blockTopics") } }
     @Published var apiKey: String { didSet { d.set(apiKey, forKey: "apiKey") } }
+    @Published var youtubeHome: String { didSet { d.set(youtubeHome, forKey: "youtubeHome") } }
     @Published var onYouTube = false          // a YouTube tab is in front (timer box shows)
     @Published var playDetection = "basic"    // "precise" when Chrome lets us check the video itself
     var aiVerdicts: [String: String]          // video ID -> learning / fun / blocked (from Claude)
@@ -454,6 +536,7 @@ final class Limiter: ObservableObject {
         blockTopics = d.string(forKey: "blockTopics")
             ?? "kiss, kissed, kissing, crush, dating, girlfriend, boyfriend, sexy, twerk, nsfw, 18+, horror, jumpscare, gore"
         apiKey = d.string(forKey: "apiKey") ?? ""
+        youtubeHome = d.string(forKey: "youtubeHome") ?? "https://www.youtube.com/results?search_query=science+for+kids"
         aiVerdicts = d.dictionary(forKey: "aiVerdicts") as? [String: String] ?? [:]
         earnedToday = d.integer(forKey: "earnedToday")
         earnLog = d.stringArray(forKey: "earnLog") ?? []
@@ -478,7 +561,7 @@ final class Limiter: ObservableObject {
             d.set(cats, forKey: "allowedCats")
             d.set(true, forKey: "relaxedFilterV1")
         }
-        allowedCats = cats
+        allowedCats = cats.filter { $0 != "Gaming" }
         allowChannels = d.string(forKey: "allowChannels") ?? ""
         var blocked = d.string(forKey: "blockChannels") ?? ""
         if !d.bool(forKey: "benAndCamFunV1") {  // one-time: Ben and Cam moves from "blocked" to fun time
@@ -486,6 +569,14 @@ final class Limiter: ObservableObject {
                 .filter { $0.lowercased() != "ben and cam" }.joined(separator: ", ")
             d.set(blocked, forKey: "blockChannels")
             d.set(true, forKey: "benAndCamFunV1")
+        }
+        if !d.bool(forKey: "v2Defaults") {  // one-time for version 2
+            var names = blocked.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            for n in ["Ben Azelart", "Brent Rivera", "Lexi Rivera", "Cash", "Ben and Cam"]
+            where !names.contains(where: { $0.lowercased() == n.lowercased() }) { names.append(n) }
+            blocked = names.joined(separator: ", ")
+            d.set(blocked, forKey: "blockChannels")
+            d.set(true, forKey: "v2Defaults")
         }
         blockChannels = blocked
         dailySec = d.double(forKey: "dailySec")
@@ -557,6 +648,10 @@ final class Limiter: ObservableObject {
 
         var ytTabs: [(Browser, String)] = []
         for b in running { if let u = activeURL(b), isYouTube(u) { ytTabs.append((b, u)) } }
+        if filterOn {   // version 2: no algorithm feeds, and a cleaned-up page
+            ytTabs = ytTabs.filter { !steerAwayFromFeeds($0.0, $0.1) }
+            for (b, _) in ytTabs { cleanUpPage(b) }
+        }
         onYouTube = !ytTabs.isEmpty
         if filterOn && !nope.isShowing && !earn.isShowing {
             for (b, u) in ytTabs { if let id = videoID(u) { checkVideo(id, url: u, in: b) } }
@@ -780,13 +875,17 @@ final class Limiter: ObservableObject {
         case "blocked": return .blocked
         default: break
         }
-        // Built-in word rules (relaxed): learning-ish categories, then a clear learning angle in the title,
-        // then brain-rot words, then any learning/creative/music topic.
+        // Version 2 built-in rules:
+        //   video games (category or words) and brain-rot / overstimulating words -> blocked
+        //   learning categories or a clear learning angle -> learning
+        //   shouting titles -> blocked;  learning/creative/music topics -> learning;  anything else -> fun time
+        let titleAndChannel = v.title + " | " + v.channel
+        if v.category == "Gaming" || matchesAny(titleAndChannel, gameTopics) { return .blocked }
+        if matchesAny(titleAndChannel, junkTopics + overstimTopics) { return .blocked }
         if allowedCats.contains(v.category) { return .learning }
         if matchesAny(v.title, strongLearningTopics) { return .learning }
-        let text = v.title + " | " + v.tags
-        if matchesAny(v.title + " | " + v.channel, junkTopics) { return .fun }
-        if matchesAny(text, learningTopics + list(allowTopics)) { return .learning }
+        if looksOverstimulating(v.title) { return .blocked }
+        if matchesAny(v.title + " | " + v.tags, learningTopics + list(allowTopics)) { return .learning }
         return .fun
     }
 
@@ -919,6 +1018,39 @@ final class Limiter: ObservableObject {
         """)
         track(b, r.err)
         return r.out
+    }
+
+    /// No algorithm feeds: Home, Trending/Explore, Gaming and the Shorts feed go to the parent's start page,
+    /// and a Short opens as a normal video (no endless swiping). Returns true if it redirected the tab.
+    private func steerAwayFromFeeds(_ b: Browser, _ url: String) -> Bool {
+        guard let c = URLComponents(string: url), let host = c.host, host.hasSuffix("youtube.com"),
+              !host.hasPrefix("music.") else { return false }
+        let path = c.path
+        var target: String?
+        if path.hasPrefix("/shorts/"), let id = videoID(url) {
+            target = "https://www.youtube.com/watch?v=\(id)"
+        } else if path.isEmpty || path == "/" || path == "/shorts" || path.hasPrefix("/feed/trending")
+                    || path.hasPrefix("/feed/explore") || path.hasPrefix("/gaming") {
+            target = youtubeHome
+        }
+        guard let t = target, let safe = t.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(["\""])) else { return false }
+        let tab = b.safari ? "current tab" : "active tab"
+        _ = runScript("tell application id \"\(b.bundleID)\" to set URL of \(tab) of front window to \"\(safe)\"")
+        return true
+    }
+
+    /// Puts the cleaner script into the YouTube page (hides suggestions, Shorts, blocked thumbnails; autoplay off).
+    private func cleanUpPage(_ b: Browser) {
+        let rules: [String: Any] = ["channels": list(blockChannels),
+                                    "words": gameTopics + junkTopics + overstimTopics + list(blockTopics)]
+        guard let data = try? JSONSerialization.data(withJSONObject: rules),
+              let json = String(data: data, encoding: .utf8) else { return }
+        let js = youtubeCleanerJS.replacingOccurrences(of: "__RULES__", with: json)
+            .replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let src = b.safari
+            ? "tell application id \"\(b.bundleID)\" to do JavaScript \"\(js)\" in current tab of front window"
+            : "tell application id \"\(b.bundleID)\" to execute active tab of front window javascript \"\(js)\""
+        _ = runScript(src)
     }
 
     /// Asks the browser whether a video on its front tab is playing. nil = can't tell (Chrome/Safari
@@ -1379,6 +1511,12 @@ struct ControlsView: View {
                     TextField("e.g. Khan Academy, Pianote", text: $m.allowChannels)
                     Text("Always allow videos about (words in the title)").font(.subheadline).bold()
                     TextField("e.g. paper airplane, how to draw", text: $m.allowTopics)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("YouTube start page (replaces YouTube's home feed)").font(.subheadline).bold()
+                        TextField("https://www.youtube.com/results?search_query=science+for+kids", text: $m.youtubeHome)
+                        Text("YouTube's home feed, Shorts and Trending go here. Suggestions, Shorts shelves, end screens and blocked channels are hidden from the page (needs Chrome: View → Developer → Allow JavaScript from Apple Events).")
+                            .font(.caption).foregroundColor(.secondary)
+                    }
                     Text("Always block these channels (fun time can't unlock these)").font(.subheadline).bold()
                     TextField("e.g. Brent Rivera", text: $m.blockChannels)
                     Text("Never allow videos about (not even with fun time)").font(.subheadline).bold()
