@@ -12,11 +12,11 @@ mkdir -p "$BUILD/Contents/MacOS" "$BUILD/Contents/Resources" build/AppIcon.icons
 
 echo "• Compiling…"
 if [[ "${UNIVERSAL:-0}" == "1" ]]; then   # release builds run on Apple Silicon and Intel Macs
-  swiftc -O -target arm64-apple-macos13.0 main.swift -o build/TubeTimer-arm64
-  swiftc -O -target x86_64-apple-macos13.0 main.swift -o build/TubeTimer-x86_64
+  swiftc -O -target arm64-apple-macos13.0 main.swift requests.swift -o build/TubeTimer-arm64
+  swiftc -O -target x86_64-apple-macos13.0 main.swift requests.swift -o build/TubeTimer-x86_64
   lipo -create build/TubeTimer-arm64 build/TubeTimer-x86_64 -output "$BUILD/Contents/MacOS/TubeTimer"
 else
-  swiftc -O -target "$(uname -m)-apple-macos13.0" main.swift -o "$BUILD/Contents/MacOS/TubeTimer"
+  swiftc -O -target "$(uname -m)-apple-macos13.0" main.swift requests.swift -o "$BUILD/Contents/MacOS/TubeTimer"
 fi
 cp party.html nope.html earn.html content/*.json "$BUILD/Contents/Resources/"
 

@@ -597,7 +597,9 @@ final class Limiter: ObservableObject {
     @Published var pin: String { didSet { d.set(pin, forKey: "pin") } }
     @Published var kidPin: String { didSet { d.set(kidPin, forKey: "kidPin") } }
     @Published var kidExtrasToday: Int = 0
-    @Published var actionMessage = ""          // confirmation shown under the +10 / Reset buttons
+    @Published var actionMessage = ""
+    @Published var requests: [KidRequest] = Limiter.loadRequests()
+    var lastNopeVideo: VideoInfo?          // confirmation shown under the +10 / Reset buttons
     var bedtimePassUntil: Double = 0           // +10 during YouTube-off hours gives a short pass
     @Published var funSec: Double
     @Published var watchingFun = false
@@ -854,6 +856,7 @@ final class Limiter: ObservableObject {
     /// mode: "nope" (not allowed), "funover" (fun time used up) or "ask" (are you sure you want to use fun time?)
     func showNope(_ v: VideoInfo, mode: String = "nope", preview: Bool = false) {
         party.hide(); nope.hide()
+        lastNopeVideo = v
         nopeIsPreview = preview
         let skin = d.integer(forKey: "skin") + 1
         d.set(skin, forKey: "skin")
@@ -909,7 +912,12 @@ final class Limiter: ObservableObject {
         }
         if o["pin"] == kidPin && !kidPin.isEmpty && o["pin"] != pin {
             pinFails = 0
-            if o["action"] == "kid10" {
+            if o["action"] == "request" {
+                let v = lastNopeVideo
+                let msg = addRequest(kind: "channel", channel: v?.channel ?? "",
+                                     note: v.map { "Blocked video: \($0.title)" } ?? "")
+                overlay.evalJS("pinInfo(\(jsString(msg)))")
+            } else if o["action"] == "kid10" {
                 let msg = kidExtra()
                 if kidExtrasToday > 0 && msg.hasPrefix("+10") { banner.show("🧒 " + msg) }
                 else { overlay.evalJS("parentResult(false, \(jsString(msg)))") }
@@ -924,7 +932,11 @@ final class Limiter: ObservableObject {
             overlay.evalJS("parentResult(false, 'Wrong PIN')"); return
         }
         pinFails = 0
-        if o["action"] == "kid10" {
+        if o["action"] == "request", let ch = lastNopeVideo?.channel, !ch.isEmpty {
+            allowChannel(ch)                // parent PIN: allow the channel right away
+            overlay.hide()
+            banner.show("✅ \(ch) is now allowed")
+        } else if o["action"] == "kid10" {
             addExtra()                      // parent PIN: +10 with no daily limit
         } else if o["action"] == "off" {
             enabled = false                 // hides every overlay; turn back on from the controls
@@ -979,7 +991,8 @@ final class Limiter: ObservableObject {
     @discardableResult
     func kidExtra() -> String {
         guard kidExtrasToday < kKidExtrasPerDay else {
-            return "You already used your \(kKidExtrasPerDay) extra 10 minutes today."
+            let sent = addRequest(kind: "time")
+            return "You already used your \(kKidExtrasPerDay) extra 10 minutes today. " + sent
         }
         kidExtrasToday += 1
         addExtra()
@@ -1140,7 +1153,7 @@ final class Limiter: ObservableObject {
         vals.forEach { d.set($1, forKey: $0) }
     }
 
-    private func changed() { onChange?() }
+    func changed() { onChange?() }
 
     // MARK: browser access
 
@@ -1640,6 +1653,7 @@ struct ControlsView: View {
                 Toggle("Only allow approved learning videos", isOn: $m.filterOn).font(.headline)
                 Text("Allowed: paper airplanes, drawing & crafts, piano and skill lessons, science / space / What If, and math, reading & writing. Everything else is blocked. No fun time.")
                     .font(.caption).foregroundColor(.secondary)
+                RequestsView()
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Always allow these channels (comma separated)").font(.subheadline).bold()
                     TextField("e.g. Khan Academy, Pianote", text: $m.allowChannels)
@@ -1759,7 +1773,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func updateMenu() {
         let m = Limiter.shared
-        statusItem.button?.title = "🐔 " + m.menuTitle
+        statusItem.button?.title = "🐔 " + m.menuTitle + (m.pendingRequests.isEmpty ? "" : "  📬\(m.pendingRequests.count)")
         hud.setVisible(m.enabled && m.onYouTube && !m.isLocked && !nope.isShowing)
         if let w = window, w.isVisible, Date().timeIntervalSince1970 > pinUnlockedUntil { w.close() }  // PIN timed out
         let menu = NSMenu()
@@ -1773,6 +1787,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         item("Open Controls…", #selector(showControls))
         item("➕ Give 10 more minutes", #selector(addExtra))
         item("🧒 Kid PIN: +10 minutes (\(max(0, kKidExtrasPerDay - m.kidExtrasToday)) left today)", #selector(kidAddExtra))
+        item("🙋 Kid PIN: ask for a channel…", #selector(kidAskChannel))
+        if !m.pendingRequests.isEmpty { item("📬 \(m.pendingRequests.count) request(s) waiting. Open Controls to review", #selector(showControls)) }
         item(m.enabled ? "Turn Monitor Off" : "Turn Monitor On", #selector(toggleEnabled))
         menu.addItem(.separator())
         item("Quit Tube Timer", #selector(quit))
@@ -1819,6 +1835,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         m.addExtra()
         let pass = m.bedtimePassUntil - m.now
         line("bedtime +10 pass: \(fmt(pass))  (\(inYouTubeOffHours && pass > 590 ? "PASS" : "FAIL"))")
+
+        // Requests
+        m.requests = []
+        line("ask channel:   \(m.addRequest(kind: "channel", channel: "Hoffman Academy Test", note: "piano!"))")
+        line("ask again:     \(m.addRequest(kind: "channel", channel: "Hoffman Academy Test"))")
+        line("ask time:      \(m.kidExtra())")
+        line("pending: \(m.pendingRequests.count)  (\(m.pendingRequests.count == 2 ? "PASS" : "FAIL"))")
+        let ch = m.pendingRequests.first { $0.kind == "channel" }!, tm = m.pendingRequests.first { $0.kind == "time" }!
+        let before = m.timeLeft
+        m.decide(ch.id, approve: true); m.decide(tm.id, approve: false)
+        line("approve channel -> allowed: \(m.isChannelAllowed("Hoffman Academy Test"))  (\(m.isChannelAllowed("Hoffman Academy Test") ? "PASS" : "FAIL"))")
+        line("deny time -> time unchanged: \(m.timeLeft == before ? "PASS" : "FAIL"),  pending now \(m.pendingRequests.count)")
+        for input in ["https://www.youtube.com/watch?v=AQRagZY760w", "@ArtforKidsHub", "Science Max"] {
+            var result: String?? = .none
+            resolveChannel(input) { result = .some($0) }
+            let deadline = Date().addingTimeInterval(20)
+            while result == nil && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.1)) }
+            line("resolve \(input) -> \(String(describing: result.flatMap { $0 } ?? "nil"))")
+        }
+    }
+
+    /// Kid PIN from the menu bar: ask a parent to allow a channel.
+    @objc func kidAskChannel() {
+        let m = Limiter.shared
+        NSApp.activate(ignoringOtherApps: true)
+        let a = NSAlert()
+        a.messageText = "🙋 Ask for a channel"
+        a.informativeText = "Type the channel's name or paste a YouTube link. A parent will check it."
+        let pinField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        pinField.placeholderString = "Your kid PIN"
+        let chField = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        chField.placeholderString = "Channel name or YouTube link"
+        let noteField = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        noteField.placeholderString = "Why? (optional)"
+        let stack = NSStackView(views: [pinField, chField, noteField])
+        stack.orientation = .vertical; stack.spacing = 8
+        stack.frame = NSRect(x: 0, y: 0, width: 300, height: 88)
+        a.accessoryView = stack
+        a.addButton(withTitle: "Send")
+        a.addButton(withTitle: "Cancel")
+        a.window.initialFirstResponder = pinField
+        guard a.runModal() == .alertFirstButtonReturn else { return }
+        guard !m.kidPin.isEmpty, pinField.stringValue == m.kidPin || pinField.stringValue == m.pin else {
+            let r = NSAlert(); r.messageText = "Wrong kid PIN 🙅"; r.runModal(); return
+        }
+        let input = chField.stringValue, note = noteField.stringValue
+        resolveChannel(input) { name in
+            let r = NSAlert()
+            r.messageText = m.addRequest(kind: "channel", channel: name ?? input.trimmingCharacters(in: .whitespaces), note: note)
+            NSApp.activate(ignoringOtherApps: true)
+            r.runModal()
+        }
     }
 
     /// Kid PIN from the menu bar: +10 minutes, twice a day.

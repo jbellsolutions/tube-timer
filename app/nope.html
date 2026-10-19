@@ -83,6 +83,7 @@ h1{margin:0;font-size:clamp(56px,8vw,120px);color:#ff2a4d;text-shadow:5px 5px 0 
   <input id="pinIn" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
   <div id="pinMsg"></div>
   <button data-act="kid10">🧒 +10 minutes</button>
+  <button data-act="request">🙋 Ask for this channel</button>
   <button data-act="end">Close this screen</button>
   <button data-act="off">Turn Tube Timer off</button>
   <button data-act="cancel" class="alt">Cancel</button>
@@ -245,6 +246,7 @@ document.querySelectorAll(".pb button").forEach(b => b.onclick = () => {
   send("parent", JSON.stringify({pin: $("pinIn").value, action: b.dataset.act}));
 });
 $("pinIn").addEventListener("keydown", e => { if (e.key === "Enter") document.querySelector('.pb button[data-act="kid10"]').click(); });
-window.parentResult = (ok, msg) => { if (!ok) { $("pinMsg").textContent = msg; $("pinIn").value = ""; $("pinIn").focus(); } };
+window.pinInfo = msg => { $("pinMsg").style.color = "#080"; $("pinMsg").textContent = msg; $("pinIn").value = ""; };
+window.parentResult = (ok, msg) => { if (!ok) { $("pinMsg").style.color = ""; $("pinMsg").textContent = msg; $("pinIn").value = ""; $("pinIn").focus(); } };
 </script>
 </body></html>
