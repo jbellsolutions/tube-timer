@@ -122,7 +122,42 @@
       ]
     },
     {
-      "label": "🤔 What If",
+      "label": "🎹 Piano lessons",
+      "videos": [
+        {
+          "id": "AQRagZY760w",
+          "title": "First Piano Lesson for Kids | Fun & Easy for Beginners",
+          "channel": "Hoffman Academy"
+        },
+        {
+          "id": "37RRgoLeejI",
+          "title": "How to Find Notes on a Piano: C, D, and E",
+          "channel": "Hoffman Academy"
+        },
+        {
+          "id": "zV1x4-1Owsw",
+          "title": "What Is the Musical Alphabet? A Beginner's Introduction to Music Notes",
+          "channel": "Hoffman Academy"
+        },
+        {
+          "id": "P2U5sJ4fR7M",
+          "title": "How to Play Happy Birthday on Piano | Super Easy Tutorial",
+          "channel": "Hoffman Academy"
+        },
+        {
+          "id": "zZxnjIQFh8k",
+          "title": "Mandalorian Theme: Piano Tutorial, Super Easy Version",
+          "channel": "Hoffman Academy"
+        },
+        {
+          "id": "5DUVWyQquFg",
+          "title": "Für Elise: Main Theme Piano Lesson",
+          "channel": "Hoffman Academy"
+        }
+      ]
+    },
+    {
+      "label": "🚀 Space & What If",
       "videos": [
         {
           "id": "Ul5Mn-tbdBU",
@@ -135,35 +170,10 @@
           "channel": "Ultra Space Balls"
         },
         {
-          "id": "rVdQMcTTQCY",
-          "title": "What If You Create Life In A Lab?",
-          "channel": "Cleo Abram"
-        },
-        {
           "id": "a-3cj32Nynk",
           "title": "What if you walked the solar system?",
           "channel": "What If"
         },
-        {
-          "id": "yoZ-jfFdYnI",
-          "title": "What If Gravity Got 1% Stronger Every Second?",
-          "channel": "What If"
-        },
-        {
-          "id": "3HhCClcp8mY",
-          "title": "What If We Moved All 8 Billion People To Mars?",
-          "channel": "What If"
-        },
-        {
-          "id": "_M-7EIpkRko",
-          "title": "What If NASA Built a Moon City by 2032?",
-          "channel": "What If"
-        }
-      ]
-    },
-    {
-      "label": "🚀 Space",
-      "videos": [
         {
           "id": "r9yYB7K0ZgI",
           "title": "There's A Secret Parking Spot in Space",
@@ -183,40 +193,19 @@
           "id": "Uvk-V7u-Fz4",
           "title": "Which Planet Has the Prettiest Rings?",
           "channel": "Ultra Space Balls"
-        },
-        {
-          "id": "6JLCyiToRdo",
-          "title": "How The Solar System Moves In Space",
-          "channel": "Zack D. Films"
-        },
-        {
-          "id": "jMKSp6YD2gM",
-          "title": "15 Space Facts You Learned Wrong",
-          "channel": "What If"
         }
       ]
     }
   ],
   "channelHandles": [
     "ScienceMax",
-    "MarkRober",
     "SciShowKids",
-    "NatGeoKids",
     "CrashCourseKids",
-    "SteveMould",
-    "StuffMadeHere",
-    "ChaseDiesInSpace",
-    "whatifscienceshow",
     "NASA",
-    "EverydayAstronaut",
-    "RealEngineering",
-    "MustardChannel",
-    "EngineeringExplained",
     "mathantics",
     "StorylineOnline",
-    "Rousseau",
-    "PatrikPietschmann",
-    "TwoSetViolin"
+    "ArtforKidsHub",
+    "hoffmanacademy"
   ],
   "alwaysAllowedChannels": [
     "art for kids hub",
@@ -224,8 +213,7 @@
     "scholastic steam",
     "scholastic after school",
     "ultra space balls",
-    "cleo abram",
     "paper planes channel",
-    "what if"
+    "hoffman academy"
   ]
 }

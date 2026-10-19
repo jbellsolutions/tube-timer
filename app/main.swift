@@ -87,7 +87,7 @@ struct Content {
         c.songs = (loadContent("party-songs") as? [String: Any])?["songs"] as? [[String: Any]] ?? []
         c.challenges = loadContent("challenges") as? [[String: Any]] ?? []
         let slotIDs = c.slots.flatMap { ($0["videos"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String } }
-        c.allowedVideoIDs = Set(slotIDs + c.songs.compactMap { $0["id"] as? String })
+        c.allowedVideoIDs = Set(slotIDs)
         return c
     }
 }
@@ -136,6 +136,22 @@ let junkTopics = [
     "24 hours", "100 days", "noob", "hacker", "pro vs", "poor vs rich", "rich vs poor", "$1 vs", "millionaire", "mukbang",
     "reaction", "reacts", "try not to laugh", "funny moments", "troll", "trolling", "squid game", "build challenge",
     "seconds vs", "minute vs", "$10,000", "$100,000", "$1,000,000", "wins $",
+]
+
+/// Version 2 allowlist: a video must clearly be one of these, or it's blocked.
+let allowedTopics = [
+    // paper airplanes, drawing, arts & crafts
+    "paper airplane", "paper plane", "paper jet", "origami", "how to draw", "learn to draw", "drawing", "draw",
+    "directed drawing", "art lesson", "art for kids", "arts and crafts", "craft", "papercraft", "paper craft",
+    // piano and learning a skill
+    "piano lesson", "piano tutorial", "learn piano", "how to play piano", "play piano", "piano for beginners",
+    "piano for kids", "easy piano", "music lesson", "music theory", "tutorial", "lesson", "how to make", "step by step",
+    // science, space, What If
+    "science", "experiment", "science max", "what if", "space", "planet", "solar system", "astronaut", "nasa", "rocket",
+    "galaxy", "moon", "mars", "jupiter", "saturn", "black hole", "earth science", "volcano", "geology", "weather",
+    // school subjects
+    "math", "maths", "addition", "subtraction", "multiplication", "division", "fraction", "counting", "number bond",
+    "reading", "read aloud", "read by", "read along", "storytime", "phonics", "spelling", "writing", "handwriting", "alphabet", "grammar",
 ]
 
 /// Version 2: anything about video games is off-limits (no gameplay, POV, Let's Plays, game channels).
@@ -286,24 +302,20 @@ let youtubeCleanerJS = #"""
 // MARK: - Optional Claude AI judge (used only when the parent adds an Anthropic API key)
 
 let aiRules = """
-You screen YouTube videos for a parent of a young child. Judge everything by what is right for a 6-7 year old. \
-Classify one video.
+You screen YouTube videos for a parent of a 6-year-old. Use a strict ALLOWLIST: a video is allowed only if it is \
+genuinely educational or tutorial quality, at a level right for a 6-7 year old, in one of these areas:
+- paper airplanes (how to fold and fly them)
+- drawing and arts & crafts lessons (e.g. Art for Kids Hub, how-to-draw, origami)
+- learning piano or another real skill, taught as a lesson or tutorial (e.g. Hoffman Academy)
+- science explained (e.g. Science Max, SciShow Kids), including space and "What If" science
+- school subjects: math, reading, writing, spelling, phonics
 
-The parent's standard: the child should only see content that is learning, creative, calm, and builds a positive \
-worldview, or gentle, kind entertainment for little kids. Space, science, nature, animals, earth, math, reading, \
-stories, drawing, crafts, paper airplanes, building, music and piano are great.
+Everything else is blocked, including: any entertainment (even gentle cartoons, vlogs, toy or preschool shows like \
+Blippi), anything about video games, music videos and performances that aren't lessons, challenges, pranks, \
+reactions, overstimulating or flashy content, anything above a 6-7 year old's level, and anything scary or mean.
 
-Verdicts:
-- "learning": real learning or creative value at a young child's level. Examples: SciShow Kids, Nat Geo Kids, \
-Science Max, Art for Kids Hub, read-alouds, simple science experiments, paper airplanes, music and piano.
-- "fun": gentle, kind, age-appropriate entertainment with a positive tone (for example calm cartoons for little kids).
-- "blocked": ANYTHING about video games (gameplay, POV, Let's Plays, Minecraft/Roblox/Fortnite, game channels, \
-game skits or parodies); overstimulating or flashy content (shouting, fast cuts, "INSANE/EXTREME", YTP, meme or \
-brain-rot compilations, pranks, challenges, "24 hours in...", vlogger channels like Ben Azelart, Brent Rivera, \
-Cash & Nico, Ben and Cam); anything above a 6-7 year old's level; anything scary, mean, romantic, or that \
-doesn't build a positive worldview.
-
-When in doubt between "fun" and "blocked", choose "blocked". Give a short, kid-friendly reason (under 15 words).
+Answer "learning" only for clear educational/tutorial content in the list above; otherwise "blocked". When in doubt, \
+"blocked". Give a short, kid-friendly reason (under 15 words).
 """
 
 /// Asks Claude to classify a video. Calls back on the main thread with nil if anything goes wrong.
@@ -328,7 +340,7 @@ func aiClassify(_ v: VideoInfo, key: String, done: @escaping (VideoKind?, String
                 "schema": [
                     "type": "object",
                     "properties": [
-                        "verdict": ["type": "string", "enum": ["learning", "fun", "blocked"]] as [String: Any],
+                        "verdict": ["type": "string", "enum": ["learning", "blocked"]] as [String: Any],
                         "reason": ["type": "string"],
                     ],
                     "required": ["verdict", "reason"],
@@ -486,8 +498,8 @@ final class Limiter: ObservableObject {
     @Published var weekendDailyMin: Int { didSet { d.set(weekendDailyMin, forKey: "weekendDailyMin"); changed() } }
     @Published var weekendSessionMin: Int { didSet { d.set(weekendSessionMin, forKey: "weekendSessionMin"); changed() } }
     var funMinToday: Int { isWeekend ? weekendFunMin : funMin }
-    var dailyMinToday: Int { isWeekend ? weekendDailyMin : dailyMin }
-    var sessionMinToday: Int { isWeekend ? weekendSessionMin : sessionMin }
+    var dailyMinToday: Int { dailyMin }       // version 2: weekends are the same as school days
+    var sessionMinToday: Int { sessionMin }
     @Published var pin: String { didSet { d.set(pin, forKey: "pin") } }
     @Published var funSec: Double
     @Published var watchingFun = false
@@ -577,6 +589,11 @@ final class Limiter: ObservableObject {
             blocked = names.joined(separator: ", ")
             d.set(blocked, forKey: "blockChannels")
             d.set(true, forKey: "v2Defaults")
+        }
+        if !d.bool(forKey: "v2BlockBlippi") {
+            if !blocked.lowercased().contains("blippi") { blocked += blocked.isEmpty ? "Blippi" : ", Blippi" }
+            d.set(blocked, forKey: "blockChannels")
+            d.set(true, forKey: "v2BlockBlippi")
         }
         blockChannels = blocked
         dailySec = d.double(forKey: "dailySec")
@@ -871,29 +888,23 @@ final class Limiter: ObservableObject {
         if let k = ruleKind(v) { return k }
         switch aiVerdicts[v.id] {
         case "learning": return .learning
-        case "fun": return .fun
-        case "blocked": return .blocked
+        case "fun", "blocked": return .blocked
         default: break
         }
-        // Version 2 built-in rules:
-        //   video games (category or words) and brain-rot / overstimulating words -> blocked
-        //   learning categories or a clear learning angle -> learning
-        //   shouting titles -> blocked;  learning/creative/music topics -> learning;  anything else -> fun time
+        // Version 2 allowlist (no AI verdict): games, brain-rot and shouting are out; then the video has to clearly
+        // be paper airplanes, drawing/crafts, piano or a skill tutorial, science/space/What If, or a school subject.
         let titleAndChannel = v.title + " | " + v.channel
         if v.category == "Gaming" || matchesAny(titleAndChannel, gameTopics) { return .blocked }
-        if matchesAny(titleAndChannel, junkTopics + overstimTopics) { return .blocked }
-        if allowedCats.contains(v.category) { return .learning }
-        if matchesAny(v.title, strongLearningTopics) { return .learning }
-        if looksOverstimulating(v.title) { return .blocked }
-        if matchesAny(v.title + " | " + v.tags, learningTopics + list(allowTopics)) { return .learning }
-        return .fun
+        if matchesAny(titleAndChannel, junkTopics + overstimTopics) || looksOverstimulating(v.title) { return .blocked }
+        if matchesAny(v.title, allowedTopics + list(allowTopics)) { return .learning }
+        return .blocked
     }
 
     private func handle(_ v: VideoInfo, url: String, in b: Browser) {
-        switch kind(v) {
+        switch kind(v) == .fun ? .blocked : kind(v) {
         case .learning: return
         case .blocked: blockVideo(v, in: b, mode: "nope")
-        case .fun:
+        case .fun:   // (not used in version 2; kept so version 1's flow still compiles)
             if !inFunWindow { blockVideo(v, in: b, mode: "notnow") }
             else if funLeft <= 0 { blockVideo(v, in: b, mode: "funover") }
             else if !approvedFun.contains(v.id) {
@@ -1241,10 +1252,6 @@ struct HUDView: View {
         let _ = tickNow
         VStack(alignment: .leading, spacing: 4) {
             Text("📺 YouTube  \(clockStr(m.liveTimeLeft)) left" + (m.watching ? "" : "  ⏸"))
-            if m.filterOn {
-                Text(inFunWindow ? "🎉 Fun time  \(clockStr(m.liveFunLeft)) left" : "🎉 Fun time  \(funWindowText)")
-                    .foregroundColor(m.watchingFun ? .yellow : .white.opacity(0.65))
-            }
         }
         .font(.system(size: 17, weight: .bold, design: .rounded).monospacedDigit())
         .foregroundColor(.white)
@@ -1431,14 +1438,6 @@ struct ControlsView: View {
             GroupBox(label: Text("Schedule")) {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text("🎉 Fun videos (school days)")
-                        Spacer()
-                        DatePicker("", selection: minutesBinding("funStart"), displayedComponents: .hourAndMinute).labelsHidden()
-                        Text("to")
-                        DatePicker("", selection: minutesBinding("funEnd"), displayedComponents: .hourAndMinute).labelsHidden()
-                    }
-                    Toggle("🎉 Fun videos allowed all day on weekends", isOn: $weekendFunAllDay)
-                    HStack {
                         Text("🌙 YouTube off")
                         Spacer()
                         DatePicker("", selection: minutesBinding("offStart"), displayedComponents: .hourAndMinute).labelsHidden()
@@ -1452,9 +1451,7 @@ struct ControlsView: View {
                     Stepper("Per day: \(m.dailyMin) min", value: $m.dailyMin, in: 5...600, step: 5)
                     Stepper("Per sitting: \(m.sessionMin) min", value: $m.sessionMin, in: 1...240)
                     Stepper("Break after a sitting: \(m.lockoutMin) min", value: $m.lockoutMin, in: 1...240)
-                    Text("Weekends (Sat + Sun)").font(.caption).bold().padding(.top, 4)
-                    Stepper("Weekend per day: \(m.weekendDailyMin) min", value: $m.weekendDailyMin, in: 5...600, step: 10)
-                    Stepper("Weekend per sitting: \(m.weekendSessionMin) min", value: $m.weekendSessionMin, in: 1...240, step: 5)
+                    Text("Same limits every day, weekends included.").font(.caption).foregroundColor(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
             }
             HStack {
@@ -1492,24 +1489,13 @@ struct ControlsView: View {
     var videosTab: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle("Only allow learning videos", isOn: $m.filterOn).font(.headline)
-                VStack(alignment: .leading, spacing: 4) {
-                    Stepper("🎉 Fun (entertainment) time: \(m.funMin) min a day", value: $m.funMin, in: 0...180, step: 5)
-                    Stepper("🎉 Weekend fun time: \(m.weekendFunMin) min a day", value: $m.weekendFunMin, in: 0...300, step: 10)
-                    Text("Fun time used today: \(fmt(m.funSec)) of \(Int(m.funLimit / 60)) min · earned today: \(m.earnedToday) of \(kMaxEarnsPerDay) (+\(kEarnMinutes) min each)")
-                        .font(.caption).foregroundColor(.secondary)
-                }.disabled(!m.filterOn)
-                Text("Allowed kinds of videos").font(.subheadline).bold()
-                LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 6) {
-                    ForEach(allCategories, id: \.self) { c in
-                        Toggle(c, isOn: Binding(get: { m.allowedCats.contains(c) },
-                                                set: { on in if on { m.allowedCats.append(c) } else { m.allowedCats.removeAll { $0 == c } } }))
-                    }
-                }.disabled(!m.filterOn)
+                Toggle("Only allow approved learning videos", isOn: $m.filterOn).font(.headline)
+                Text("Allowed: paper airplanes, drawing & crafts, piano and skill lessons, science / space / What If, and math, reading & writing. Everything else is blocked. No fun time.")
+                    .font(.caption).foregroundColor(.secondary)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Always allow these channels (comma separated)").font(.subheadline).bold()
                     TextField("e.g. Khan Academy, Pianote", text: $m.allowChannels)
-                    Text("Always allow videos about (words in the title)").font(.subheadline).bold()
+                    Text("Also allow videos about (words in the title)").font(.subheadline).bold()
                     TextField("e.g. paper airplane, how to draw", text: $m.allowTopics)
                     VStack(alignment: .leading, spacing: 6) {
                         Text("YouTube start page (replaces YouTube's home feed)").font(.subheadline).bold()
