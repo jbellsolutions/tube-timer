@@ -319,14 +319,69 @@ Answer "learning" only for clear educational/tutorial content in the list above;
 """
 
 /// OpenRouter model for the smart filter (parent can change it in the controls).
+/// Default: Perplexity Decider V1.2, a decision model that answers with a probability instead of text.
 var aiModel: String {
     let m = UserDefaults.standard.string(forKey: "aiModel")?.trimmingCharacters(in: .whitespaces) ?? ""
-    return m.isEmpty ? "anthropic/claude-haiku-5.5" : m
+    return m.isEmpty ? "perplexity/pplx-decider-v1.2" : m
+}
+let kChatFallbackModel = "anthropic/claude-haiku-5.5"
+let kDecisionThreshold = 0.6     // allowed only when the decision model is at least 60% sure
+
+/// Decision models (Perplexity Decider, Cloudflare Clef, TypeSafe Jev…) use OpenRouter's Decisions API, not chat.
+func isDecisionModel(_ m: String) -> Bool {
+    let m = m.lowercased()
+    return m.contains("pplx-decider") || m.hasPrefix("cloudflare/clef") || m.hasPrefix("typesafe/jev") || m.contains("decision")
 }
 
-/// Asks Claude Haiku to classify a video. An OpenRouter key (sk-or-…) goes through OpenRouter; an Anthropic key
-/// (sk-ant-…) goes straight to Anthropic. Calls back on the main thread with nil if anything goes wrong.
+/// Asks an OpenRouter decision model one yes/no question: is this video on the allowlist?
+func decideClassify(_ v: VideoInfo, key: String, model: String, done: @escaping (VideoKind?, String) -> Void) {
+    let body: [String: Any] = [
+        "model": model,
+        "state": ["video": ["title": v.title, "channel": v.channel, "youtube_category": v.category,
+                            "tags": String(v.tags.prefix(400)), "description": v.description]],
+        "questions": ["allowed": [
+            "type": "noul",
+            "instructions": "Is the video in `video` genuinely educational or tutorial content, right for a 6-7 year old, in one of the parent's allowed areas? Judge from its title, channel, category, tags and description.",
+            "criteria": [
+                "true": "Yes: a real lesson, tutorial or explanation for a young child about paper airplanes; drawing or arts and crafts (like Art for Kids Hub or origami); learning piano or another skill (like Hoffman Academy); science explained, including space and What If science (like Science Max or SciShow Kids); or math, reading, writing, spelling or phonics.",
+                "false": "No: any entertainment (cartoons, vlogs, toy or preschool shows like Blippi, music videos or performances that aren't lessons), anything about video games, challenges, pranks, reactions, flashy or overstimulating content, anything above a 6-7 year old's level, or anything scary or mean.",
+            ],
+        ] as [String: Any]],
+    ]
+    var req = URLRequest(url: URL(string: "https://openrouter.ai/api/alpha/decisions")!, timeoutInterval: 30)
+    req.httpMethod = "POST"
+    req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+    req.setValue("application/json", forHTTPHeaderField: "content-type")
+    req.setValue("https://github.com/jbellsolutions/tube-timer", forHTTPHeaderField: "HTTP-Referer")
+    req.setValue("Tube Timer", forHTTPHeaderField: "X-Title")
+    req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+    URLSession.shared.dataTask(with: req) { data, _, _ in
+        var kind: VideoKind?, reason = ""
+        if let data = data, let resp = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let answer = (resp["answers"] as? [String: Any])?["allowed"] as? [String: Any],
+           let p = (answer["noul"] as? NSNumber)?.doubleValue {
+            kind = p >= kDecisionThreshold ? .learning : .blocked
+            reason = "\(Int((p * 100).rounded()))% sure it's on the learning list"
+        }
+        DispatchQueue.main.async { done(kind, reason) }
+    }.resume()
+}
+
+/// Classifies a video with the smart filter. OpenRouter key + decision model -> Decisions API (Haiku if that fails);
+/// otherwise Claude Haiku by chat. Calls back on the main thread with nil if anything goes wrong.
 func aiClassify(_ v: VideoInfo, key: String, done: @escaping (VideoKind?, String) -> Void) {
+    if key.hasPrefix("sk-or-") && isDecisionModel(aiModel) {
+        decideClassify(v, key: key, model: aiModel) { kind, reason in
+            if kind != nil { done(kind, reason) } else { chatClassify(v, key: key, model: kChatFallbackModel, done: done) }
+        }
+    } else {
+        chatClassify(v, key: key, model: isDecisionModel(aiModel) ? kChatFallbackModel : aiModel, done: done)
+    }
+}
+
+/// Asks a chat model (Claude Haiku by default). An OpenRouter key (sk-or-…) goes through OpenRouter; an Anthropic
+/// key (sk-ant-…) goes straight to Anthropic.
+func chatClassify(_ v: VideoInfo, key: String, model: String, done: @escaping (VideoKind?, String) -> Void) {
     let video = """
     Title: \(v.title)
     Channel: \(v.channel)
@@ -352,7 +407,7 @@ func aiClassify(_ v: VideoInfo, key: String, done: @escaping (VideoKind?, String
         req.setValue("https://github.com/jbellsolutions/tube-timer", forHTTPHeaderField: "HTTP-Referer")
         req.setValue("Tube Timer", forHTTPHeaderField: "X-Title")
         body = [
-            "model": aiModel,
+            "model": model,
             "max_tokens": 1024,
             "reasoning": ["effort": "low"],
             "messages": [["role": "system", "content": aiRules], ["role": "user", "content": video]],
@@ -1537,13 +1592,13 @@ struct ControlsView: View {
                 GroupBox(label: Text("🤖 Smart filter (optional)")) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(m.apiKey.isEmpty
-                             ? "Off. Using built-in word rules. Paste an OpenRouter key (or an Anthropic key) to let Claude Haiku judge each new video using your rules."
-                             : "On. Claude Haiku judges each new video the word rules can't settle (a tiny fraction of a cent per new video).")
+                             ? "Off. Using built-in word rules. Paste an OpenRouter key (or an Anthropic key) to let AI judge each new video by your allowlist."
+                             : "On. Each new video the word rules can't settle is judged by the smart filter (a tiny fraction of a cent per video).")
                             .font(.caption).foregroundColor(.secondary)
                         SecureField("OpenRouter key (sk-or-…) or Anthropic key (sk-ant-…)", text: $m.apiKey)
                         HStack {
                             Text("OpenRouter model:").font(.caption)
-                            TextField("anthropic/claude-haiku-5.5", text: $aiModelSetting).font(.caption)
+                            TextField("perplexity/pplx-decider-v1.2", text: $aiModelSetting).font(.caption)
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
                 }
