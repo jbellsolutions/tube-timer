@@ -318,6 +318,12 @@ Answer "learning" only for clear educational/tutorial content in the list above;
 "blocked". Give a short, kid-friendly reason (under 15 words).
 """
 
+/// OpenRouter model for the smart filter (parent can change it in the controls).
+var aiModel: String {
+    let m = UserDefaults.standard.string(forKey: "aiModel")?.trimmingCharacters(in: .whitespaces) ?? ""
+    return m.isEmpty ? "anthropic/claude-haiku-5.5" : m
+}
+
 /// Asks Claude Haiku to classify a video. An OpenRouter key (sk-or-…) goes through OpenRouter; an Anthropic key
 /// (sk-ant-…) goes straight to Anthropic. Calls back on the main thread with nil if anything goes wrong.
 func aiClassify(_ v: VideoInfo, key: String, done: @escaping (VideoKind?, String) -> Void) {
@@ -346,7 +352,7 @@ func aiClassify(_ v: VideoInfo, key: String, done: @escaping (VideoKind?, String
         req.setValue("https://github.com/jbellsolutions/tube-timer", forHTTPHeaderField: "HTTP-Referer")
         req.setValue("Tube Timer", forHTTPHeaderField: "X-Title")
         body = [
-            "model": "anthropic/claude-haiku-5.5",
+            "model": aiModel,
             "max_tokens": 1024,
             "reasoning": ["effort": "low"],
             "messages": [["role": "system", "content": aiRules], ["role": "user", "content": video]],
@@ -1383,6 +1389,7 @@ struct ControlsView: View {
     @State private var login = opensAtLogin
     @State private var newPin = ""
     @AppStorage("weekendFunAllDay") private var weekendFunAllDay = true
+    @AppStorage("aiModel") private var aiModelSetting = ""
 
     /// A time-of-day picker binding for a "minutes after midnight" setting.
     func minutesBinding(_ key: String) -> Binding<Date> {
@@ -1534,6 +1541,10 @@ struct ControlsView: View {
                              : "On. Claude Haiku judges each new video the word rules can't settle (a tiny fraction of a cent per new video).")
                             .font(.caption).foregroundColor(.secondary)
                         SecureField("OpenRouter key (sk-or-…) or Anthropic key (sk-ant-…)", text: $m.apiKey)
+                        HStack {
+                            Text("OpenRouter model:").font(.caption)
+                            TextField("anthropic/claude-haiku-5.5", text: $aiModelSetting).font(.caption)
+                        }
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
                 }
                 HStack {
