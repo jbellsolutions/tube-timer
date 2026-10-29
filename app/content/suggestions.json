@@ -157,6 +157,46 @@
       ]
     },
     {
+      "label": "🌿 Nature",
+      "videos": [
+        {
+          "id": "qXYbLIEspqE",
+          "title": "Meet the Ocean's Wildest Animals! | Super Animals",
+          "channel": "Nat Geo Kids"
+        },
+        {
+          "id": "KMdD6TTDZ_g",
+          "title": "Explore the Rainforest! | Ecology for Kids",
+          "channel": "SciShow Kids"
+        },
+        {
+          "id": "h51XRnmHxR4",
+          "title": "Wild Babies of America's National Parks!",
+          "channel": "Nat Geo Kids"
+        },
+        {
+          "id": "8adtdg0N2-g",
+          "title": "Ocean Animals for Kids | Animals and Plants of the Ocean",
+          "channel": "Learn Bright"
+        },
+        {
+          "id": "nmh5ot2F6gM",
+          "title": "Super Strange Animals | Super Animals",
+          "channel": "Nat Geo Kids"
+        },
+        {
+          "id": "z_j8HgeTUu4",
+          "title": "In the Rainforest | Rainforest Ecology | Full Episode",
+          "channel": "The Magic School Bus"
+        },
+        {
+          "id": "7CghDWUJRI0",
+          "title": "Underwater Animal Adventures! | America's National Parks",
+          "channel": "Nat Geo Kids"
+        }
+      ]
+    },
+    {
       "label": "🚀 Space & What If",
       "videos": [
         {
@@ -205,7 +245,8 @@
     "mathantics",
     "StorylineOnline",
     "ArtforKidsHub",
-    "hoffmanacademy"
+    "hoffmanacademy",
+    "NatGeoKids"
   ],
   "alwaysAllowedChannels": [
     "art for kids hub",
@@ -214,6 +255,9 @@
     "scholastic after school",
     "ultra space balls",
     "paper planes channel",
-    "hoffman academy"
+    "hoffman academy",
+    "nat geo kids",
+    "the magic school bus",
+    "learn bright"
   ]
 }

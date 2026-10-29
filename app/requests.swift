@@ -81,12 +81,26 @@ extension Limiter {
         changed()
     }
 
-    /// Parent approves or denies a request.
-    func decide(_ id: String, approve: Bool) {
+    /// Parent: put a channel on the 30-minute fun track (and take it off the block list).
+    func allowFunChannel(_ name: String) {
+        let n = name.trimmingCharacters(in: .whitespaces)
+        guard !n.isEmpty else { return }
+        var names = funChannels.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        if !names.contains(where: { $0.lowercased() == n.lowercased() }) { names.append(n) }
+        funChannels = names.joined(separator: ", ")
+        blockChannels = blockChannels.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && $0.lowercased() != n.lowercased() }.joined(separator: ", ")
+        changed()
+    }
+
+    /// Parent approves (as learning, or as fun) or denies a request.
+    func decide(_ id: String, approve: Bool, asFun: Bool = false) {
         guard let i = requests.firstIndex(where: { $0.id == id }) else { return }
-        requests[i].status = approve ? "approved" : "denied"
+        requests[i].status = approve ? (asFun ? "approved-fun" : "approved") : "denied"
         if approve {
-            if requests[i].kind == "time" { addExtra() } else { allowChannel(requests[i].channel) }
+            if requests[i].kind == "time" { addExtra() }
+            else if asFun { allowFunChannel(requests[i].channel) }
+            else { allowChannel(requests[i].channel) }
         }
         saveRequests(); changed()
     }
@@ -97,6 +111,17 @@ struct RequestsView: View {
     @ObservedObject var m = Limiter.shared
     @State private var addText = ""
     @State private var addMsg = ""
+
+    private func add(asFun: Bool) {
+        let input = addText
+        addMsg = "Looking it up…"
+        resolveChannel(input) { name in
+            guard let n = name else { addMsg = "Couldn't find that channel. Try pasting one of its video links."; return }
+            if asFun { m.allowFunChannel(n); addMsg = "✅ \(n) is on the fun track (\(m.funMin) min a day)." }
+            else { m.allowChannel(n); addMsg = "✅ \(n) is now always allowed." }
+            addText = ""
+        }
+    }
 
     private func when(_ d: Date) -> String {
         let f = DateFormatter(); f.dateFormat = "MMM d, h:mm a"; return f.string(from: d)
@@ -116,25 +141,17 @@ struct RequestsView: View {
                             Text((r.note.isEmpty ? "" : "“\(r.note)” · ") + when(r.time)).font(.caption).foregroundColor(.secondary)
                         }
                         Spacer()
-                        Button("Approve") { m.decide(r.id, approve: true) }
+                        Button(r.kind == "time" ? "Approve" : "Allow") { m.decide(r.id, approve: true) }
+                        if r.kind == "channel" { Button("As fun") { m.decide(r.id, approve: true, asFun: true) } }
                         Button("Deny") { m.decide(r.id, approve: false) }
                     }
                 }
                 Divider()
-                Text("➕ Allow a channel").font(.subheadline).bold()
+                Text("➕ Allow a channel (learning), or add it to the fun track").font(.subheadline).bold()
                 HStack {
                     TextField("Paste a channel or video link, or type a channel name", text: $addText)
-                    Button("Add") {
-                        let input = addText
-                        addMsg = "Looking it up…"
-                        resolveChannel(input) { name in
-                            if let n = name {
-                                m.allowChannel(n); addMsg = "✅ \(n) is now always allowed."; addText = ""
-                            } else {
-                                addMsg = "Couldn't find that channel. Try pasting one of its video links."
-                            }
-                        }
-                    }.disabled(addText.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("Add") { add(asFun: false) }.disabled(addText.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("Add as fun") { add(asFun: true) }.disabled(addText.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 if !addMsg.isEmpty { Text(addMsg).font(.caption) }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(4)
