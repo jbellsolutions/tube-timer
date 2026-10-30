@@ -601,6 +601,7 @@ final class Limiter: ObservableObject {
     @Published var youtubeHome: String { didSet { d.set(youtubeHome, forKey: "youtubeHome") } }
     @Published var funChannels: String { didSet { d.set(funChannels, forKey: "funChannels") } }
     @Published var onYouTube = false          // a YouTube tab is in front (timer box shows)
+    var nowVideo: VideoInfo?                  // the video in front right now, if we know it (shown on the phones)
     @Published var playDetection = "basic"    // "precise" when Chrome lets us check the video itself
     var aiVerdicts: [String: String]          // video ID -> learning / fun / blocked (from Claude)
     var aiReasons: [String: String] = [:]
@@ -768,6 +769,7 @@ final class Limiter: ObservableObject {
         rollDay()
         defer { save(); changed() }
         watchingFun = false
+        nowVideo = nil
 
         if party.isShowing && (t >= partyUntil || (!partyIsPreview && !isLocked)) { party.hide() }
         guard enabled else { watching = false; onYouTube = false; return }
@@ -799,6 +801,7 @@ final class Limiter: ObservableObject {
             for (b, _) in ytTabs { cleanUpPage(b) }
         }
         onYouTube = !ytTabs.isEmpty
+        nowVideo = ytTabs.lazy.compactMap { videoID($0.1) }.compactMap { self.verdicts[$0] }.first
         if filterOn && !nope.isShowing && !earn.isShowing {
             for (b, u) in ytTabs { if let id = videoID(u) { checkVideo(id, url: u, in: b) } }
         }
@@ -849,6 +852,30 @@ final class Limiter: ObservableObject {
             speak("One minute of fun time left!")
         }
     }
+
+    /// Everything the parents' phones show, sent to the relay every few seconds.
+    func statusSnapshot() -> [String: Any] {
+        let names = { (s: String) in s.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+        var nowDict: Any = NSNull()
+        if let v = nowVideo {
+            let k = kind(v)
+            nowDict = ["title": v.title, "channel": v.channel, "kind": k == .learning ? "learning" : k == .fun ? "fun" : "blocked"]
+        }
+        return [
+            "v": 1, "mac": macName, "enabled": enabled, "onYouTube": onYouTube, "watching": watching,
+            "watchingFun": watchingFun, "now": nowDict,
+            "daily": ["used": dailySec, "limit": dailyLimit], "sitting": ["used": sessionSec, "limit": sessionLimit],
+            "fun": ["used": funSec, "limit": funLimit], "kidExtras": ["used": kidExtrasToday, "max": kKidExtrasPerDay],
+            "lock": ["locked": isLocked, "until": lockedUntil, "reason": lockReason] as [String: Any],
+            "bedtime": ["start": kOffStart, "end": kOffEnd, "active": inYouTubeOffHours] as [String: Any],
+            "limits": ["dailyMin": dailyMin, "sessionMin": sessionMin, "lockoutMin": lockoutMin, "funMin": funMin],
+            "channels": ["allow": names(allowChannels), "fun": names(funChannels), "block": names(blockChannels)],
+            "requests": pendingRequests.map { ["id": $0.id, "kind": $0.kind, "channel": $0.channel, "note": $0.note,
+                                               "time": $0.time.timeIntervalSince1970] as [String: Any] },
+            "recent": Array(recentBlocks.prefix(8)),
+        ]
+    }
+    private lazy var macName: String = Host.current().localizedName ?? "Mac"
 
     func lock(until: Double, daily: Bool, reason: String) {
         lockedUntil = until; lockIsDaily = daily; lockReason = reason
@@ -1055,11 +1082,11 @@ final class Limiter: ObservableObject {
         if list(blockChannels).contains(where: { ch.contains($0) }) { return .blocked }
         // Title only: creators stuff tags with other people's names ("ben azelart girlfriend"), which isn't the video.
         if !v.familySafe || matchesAny(v.title, list(blockTopics)) { return .blocked }
-        if list(allowChannels).contains(where: { ch.contains($0) }) || Suggestions.shared.channelNames.contains(ch)
-            || content.alwaysAllowedChannels.contains(ch) { return .learning }
-        if list(funChannels).contains(where: { ch.contains($0) }) {      // Dr Ryan, Ryan's World, Hot Wheels…
+        if list(funChannels).contains(where: { ch.contains($0) }) {      // Dr Ryan, Ryan's World, Hot Wheels… (wins over allow)
             return matchesAny(v.title + " | " + v.channel, gameTopics) ? .blocked : .fun
         }
+        if list(allowChannels).contains(where: { ch.contains($0) }) || Suggestions.shared.channelNames.contains(ch)
+            || content.alwaysAllowedChannels.contains(ch) { return .learning }
         return nil
     }
 
@@ -1597,6 +1624,7 @@ struct ControlsView: View {
             TabView {
                 timeTab.padding(10).tabItem { Text("⏱ Time") }
                 videosTab.padding(10).tabItem { Text("🎓 Videos") }
+                PhonesView().padding(10).tabItem { Text("📱 Phones") }
             }
         }
         .padding(20)
@@ -1791,6 +1819,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         Suggestions.shared.refresh()
         Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { _ in Suggestions.shared.refresh() }
         m.start()
+        Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in Relay.shared.sync() }
+        Relay.shared.sync()
 
         let args = CommandLine.arguments
         if args.contains("--preview-party") { m.showParty(preview: true) }

@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tube Timer</title>
+<!-- No web manifest on purpose: iPhone "Add to Home Screen" then saves this exact URL, including the pairing. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tube Timer">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#fff8ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16141f" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<style>
+:root{
+  --bg:#fff8ec; --card:#ffffff; --ink:#1d1b16; --muted:#6b6557; --line:#eee3cf; --soft:#f6efe1;
+  --accent:#ff5a36; --sun:#ffd23f; --good:#2f9e4f; --sky:#2b6cff; --warn:#c2410c; --bad:#c62828;
+  --radius:18px; color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#16141f; --card:#211e2d; --ink:#f3f0fa; --muted:#a29db6; --line:#332f44; --soft:#2a2639;
+    --good:#4cc46c; --sky:#6f9bff; --warn:#fb923c; --bad:#ff6b6b; }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif}
+body{padding:calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 90px)}
+h1{font-size:26px;margin:0}
+h2{font-size:17px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 2px 14px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand img{width:38px;height:38px;border-radius:10px}
+.pill{font-size:13px;font-weight:600;padding:6px 10px;border-radius:999px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.pill.on{background:#2f9e4f22;color:var(--good)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin:0 0 14px}
+.muted{color:var(--muted)} .small{font-size:13px}
+.big{font-size:34px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.bar{height:12px;border-radius:999px;background:var(--soft);overflow:hidden;margin:8px 0 2px}
+.bar i{display:block;height:100%;border-radius:999px;background:var(--sky);transition:width .4s}
+.bar.fun i{background:var(--sun)}
+.meters{display:grid;gap:12px}
+.now{padding:12px;border-radius:14px;background:var(--soft);margin-top:12px}
+.now b{display:block}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:4px;vertical-align:1px}
+.tag.learning{background:#2f9e4f22;color:var(--good)} .tag.fun{background:#ffd23f44;color:#8a6a00} .tag.blocked{background:#c6282822;color:var(--bad)}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;font-weight:700;border:0;border-radius:14px;padding:14px 12px;background:var(--soft);color:var(--ink);cursor:pointer}
+button:active{transform:scale(.98)}
+button.primary{background:var(--accent);color:#fff}
+button.good{background:var(--good);color:#fff}
+button.bad{background:transparent;color:var(--bad);border:1.5px solid var(--bad)}
+button.small{padding:8px 12px;font-size:14px;border-radius:11px}
+button:disabled{opacity:.5}
+.toggle{display:flex;align-items:center;justify-content:space-between;padding:14px;border-radius:14px;background:var(--soft);grid-column:1/-1;font-weight:700}
+.switch{position:relative;width:52px;height:32px;border-radius:999px;background:#c9c2b3;transition:.2s;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:.2s}
+.switch.on{background:var(--good)} .switch.on::after{left:23px}
+.req{border-top:1px solid var(--line);padding:12px 0 2px}
+.req:first-of-type{border-top:0;padding-top:0}
+.req .btns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.badge{background:var(--accent);color:#fff;font-size:12px;border-radius:999px;padding:1px 8px}
+input[type=text],input[type=time],input[type=tel]{font:inherit;width:100%;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.chip{font-size:13px;padding:6px 6px 6px 10px;border-radius:999px;background:var(--soft);display:flex;align-items:center;gap:6px}
+.chip button{padding:0;width:22px;height:22px;border-radius:50%;font-size:13px;line-height:22px;background:transparent;color:var(--muted)}
+.stepper{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
+.stepper:first-of-type{border-top:0}
+.stepper .ctl{display:flex;align-items:center;gap:10px}
+.stepper .ctl button{width:38px;height:38px;padding:0;border-radius:50%;font-size:20px}
+.stepper .ctl span{min-width:62px;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+.times{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.list{margin:0;padding-left:18px} .list li{margin:4px 0}
+#toast{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 16px);background:var(--ink);color:var(--bg);
+  padding:14px 16px;border-radius:14px;font-weight:600;transform:translateY(150%);transition:transform .25s;z-index:9}
+#toast.show{transform:none}
+.center{text-align:center}
+.pair{max-width:420px;margin:12vh auto 0}
+.pair .code{font-size:32px;letter-spacing:10px;text-align:center;font-weight:800}
+.hint{background:#2b6cff18;border:1px solid #2b6cff44;border-radius:14px;padding:12px;font-size:14px;margin-bottom:14px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- Pairing -->
+<section id="pairView" class="pair" hidden>
+  <div class="center"><img src="icon-180.png" alt="" width="84" height="84" style="border-radius:20px"></div>
+  <h1 class="center" style="margin:14px 0 6px">Tube Timer</h1>
+  <p class="center muted">Control your kid's YouTube time from this phone.</p>
+  <div class="card">
+    <p style="margin-top:0">On the Mac: open <b>Tube Timer → 📱 Phones → Pair a phone</b>, then scan the QR code or type the 6-digit code here.</p>
+    <input id="pairCode" class="code" type="tel" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code">
+    <p class="small muted" style="margin:12px 0 6px">Who is this phone?</p>
+    <input id="pairName" type="text" placeholder="e.g. Dad, Mom" maxlength="40">
+    <button id="pairBtn" class="primary" style="width:100%;margin-top:14px">Pair this phone</button>
+    <p id="pairMsg" class="small" style="color:var(--bad);margin:10px 0 0"></p>
+  </div>
+</section>
+
+<!-- Main -->
+<main id="mainView" hidden>
+  <div class="top">
+    <div class="brand"><img src="icon-180.png" alt=""><div><h1>Tube Timer</h1><div id="macName" class="small muted"></div></div></div>
+    <span id="online" class="pill">Connecting…</span>
+  </div>
+
+  <div id="installHint" class="hint" hidden>📲 <b>Add this to your Home Screen:</b> tap the Share button <b>⬆︎</b> then <b>Add to Home Screen</b>. Open it from there from now on.</div>
+  <div id="waiting" class="card center muted" hidden>Waiting for the Mac to check in… Make sure Tube Timer is running on it.</div>
+
+  <section id="today" class="card" hidden>
+    <h2>Today</h2>
+    <div class="meters">
+      <div>
+        <div class="row"><span>📺 YouTube</span><span id="ytText" class="muted small"></span></div>
+        <div class="bar"><i id="ytBar"></i></div>
+      </div>
+      <div>
+        <div class="row"><span>🎉 Fun videos</span><span id="funText" class="muted small"></span></div>
+        <div class="bar fun"><i id="funBar"></i></div>
+      </div>
+      <div class="row small muted"><span id="sitText"></span><span id="kidText"></span></div>
+    </div>
+    <div id="nowBox" class="now"></div>
+  </section>
+
+  <section id="controls" class="card" hidden>
+    <h2>Quick controls</h2>
+    <div class="actions">
+      <button class="primary" data-cmd="add10">＋10 minutes</button>
+      <button data-cmd="endBreak">End break</button>
+      <button data-cmd="lockNow">⏸ Pause 30 min</button>
+      <button data-cmd="resetToday">↺ Reset today</button>
+      <div class="toggle"><span>Tube Timer is <span id="enabledWord">on</span></span><div id="enabledSwitch" class="switch on" role="switch" aria-checked="true"></div></div>
+    </div>
+  </section>
+
+  <section id="requestsCard" class="card" hidden>
+    <h2>📬 Requests <span id="reqCount" class="badge"></span></h2>
+    <div id="requests"></div>
+  </section>
+
+  <section id="channelsCard" class="card" hidden>
+    <h2>📺 Channels</h2>
+    <input id="chanInput" type="text" placeholder="Channel name, @handle or YouTube link" autocapitalize="off">
+    <div class="actions" style="grid-template-columns:1fr 1fr 1fr;margin-top:10px">
+      <button class="good small" data-chan="allowChannel">Allow</button>
+      <button class="small" data-chan="funChannel">🎉 Fun</button>
+      <button class="bad small" data-chan="blockChannel">Block</button>
+    </div>
+    <p class="small muted" style="margin:14px 0 0">Always allowed (learning)</p><div id="allowChips" class="chips"></div>
+    <p class="small muted" style="margin:0">Fun track (counts toward fun minutes)</p><div id="funChips" class="chips"></div>
+    <p class="small muted" style="margin:0">Blocked</p><div id="blockChips" class="chips"></div>
+  </section>
+
+  <section id="limitsCard" class="card" hidden>
+    <h2>⏱ Limits</h2>
+    <div id="steppers"></div>
+    <p class="small muted" style="margin:12px 0 0">🌙 YouTube off (bedtime)</p>
+    <div class="times"><input id="bedStart" type="time"><input id="bedEnd" type="time"></div>
+    <button id="saveLimits" class="primary" style="width:100%;margin-top:14px" disabled>Save changes</button>
+  </section>
+
+  <section id="blockedCard" class="card" hidden>
+    <h2>🚫 Recently blocked</h2>
+    <ul id="recent" class="list small"></ul>
+  </section>
+
+  <p class="center small muted"><span id="whoAmI"></span> · <a href="#" id="unpair" style="color:var(--muted)">Unpair this phone</a></p>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = (sec) => { sec = Math.max(0, Math.round(sec || 0)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60);
+  return h ? `${h}h ${m}m` : `${m}m`; };
+const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+const fromHHMM = (v) => { const [h, m] = (v || "0:0").split(":").map(Number); return h * 60 + m; };
+
+// ---------- who am I (pairing travels in the URL so "Add to Home Screen" keeps it) ----------
+const q = new URLSearchParams(location.search);
+let me = { hid: q.get("h"), key: q.get("k"), name: q.get("n") };
+if (!me.hid || !me.key) { try { me = JSON.parse(localStorage.getItem("tt-pairing")) || me; } catch {} }
+const paired = () => me && me.hid && me.key;
+function remember() {
+  try { localStorage.setItem("tt-pairing", JSON.stringify(me)); } catch {}
+  history.replaceState(null, "", `?h=${encodeURIComponent(me.hid)}&k=${encodeURIComponent(me.key)}&n=${encodeURIComponent(me.name || "")}`);
+}
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 3200);
+}
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { "content-type": "application/json", authorization: `Bearer ${me.key || ""}` } });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(data.error || "Something went wrong"), { status: r.status });
+  return data;
+}
+
+// ---------- pairing ----------
+function showPair() {
+  $("mainView").hidden = true; $("pairView").hidden = false;
+  if (q.get("pair")) $("pairCode").value = q.get("pair");
+  (q.get("pair") ? $("pairName") : $("pairCode")).focus();
+}
+$("pairBtn").onclick = async () => {
+  $("pairMsg").textContent = ""; $("pairBtn").disabled = true;
+  try {
+    const r = await api("/api/pair/claim", { method: "POST",
+      body: JSON.stringify({ code: $("pairCode").value, name: $("pairName").value.trim() || "Parent" }) });
+    me = { hid: r.hid, key: r.key, name: r.name }; remember();
+    start(true);
+  } catch (e) { $("pairMsg").textContent = e.message; }
+  $("pairBtn").disabled = false;
+};
+$("unpair").onclick = async (e) => {
+  e.preventDefault();
+  if (!confirm("Unpair this phone? You'll need a new code from the Mac to pair it again.")) return;
+  try { await api("/api/unpair", { method: "POST", body: JSON.stringify({ hid: me.hid }) }); } catch {}
+  try { localStorage.removeItem("tt-pairing"); } catch {}
+  me = {}; history.replaceState(null, "", location.pathname); showPair();
+};
+
+// ---------- commands ----------
+const waitingFor = new Map();   // command id -> label
+async function cmd(type, args = {}, label = "Sent") {
+  try {
+    const r = await api("/api/command", { method: "POST", body: JSON.stringify({ hid: me.hid, type, args }) });
+    waitingFor.set(r.id, label);
+    toast(`${label}… (sending to the Mac)`);
+    setTimeout(poll, 1500);
+  } catch (e) { toast(e.message); }
+}
+document.querySelectorAll("[data-cmd]").forEach((b) => b.onclick = () => {
+  const t = b.dataset.cmd;
+  if (t === "resetToday" && !confirm("Reset today's YouTube and fun time to zero?")) return;
+  cmd(t, t === "lockNow" ? { minutes: 30 } : {}, b.textContent.trim());
+});
+$("enabledSwitch").onclick = () => {
+  const turnOn = !$("enabledSwitch").classList.contains("on");
+  if (!turnOn && !confirm("Turn Tube Timer off? YouTube will have no limits until you turn it back on.")) return;
+  cmd("setEnabled", { on: turnOn }, turnOn ? "Turning on" : "Turning off");
+};
+document.querySelectorAll("[data-chan]").forEach((b) => b.onclick = () => {
+  const v = $("chanInput").value.trim();
+  if (!v) return toast("Type a channel name or paste a link first");
+  cmd(b.dataset.chan, { input: v }, `${b.textContent.trim()}: ${v}`);
+  $("chanInput").value = "";
+});
+
+// ---------- limits editor ----------
+let limits = null, dirty = false;
+const STEPS = [["dailyMin", "📺 YouTube per day", 5, 5, 600], ["sessionMin", "⏳ Per sitting", 5, 1, 240],
+  ["lockoutMin", "🕺 Break after a sitting", 5, 1, 240], ["funMin", "🎉 Fun videos per day", 5, 0, 180]];
+function renderSteppers() {
+  $("steppers").innerHTML = STEPS.map(([k, label]) => `<div class="stepper"><span>${label}</span>
+    <div class="ctl"><button data-k="${k}" data-d="-1">−</button><span id="v-${k}">${limits[k]} min</span><button data-k="${k}" data-d="1">+</button></div></div>`).join("");
+  $("steppers").querySelectorAll("button").forEach((b) => b.onclick = () => {
+    const [k, , step, lo, hi] = STEPS.find((s) => s[0] === b.dataset.k);
+    limits[k] = Math.min(hi, Math.max(lo, limits[k] + step * Number(b.dataset.d)));
+    $("v-" + k).textContent = `${limits[k]} min`; dirty = true; $("saveLimits").disabled = false;
+  });
+}
+["bedStart", "bedEnd"].forEach((id) => $(id).oninput = () => { dirty = true; $("saveLimits").disabled = false; });
+$("saveLimits").onclick = () => {
+  cmd("setLimits", { ...limits }, "Saving limits");
+  cmd("setBedtime", { start: fromHHMM($("bedStart").value), end: fromHHMM($("bedEnd").value) }, "Saving bedtime");
+  dirty = false; $("saveLimits").disabled = true;
+};
+
+// ---------- render ----------
+const KIND = { learning: "📚 Learning", fun: "🎉 Fun", blocked: "🚫 Blocked" };
+function chips(el, names, listName) {
+  el.innerHTML = names.length ? names.map((n) => `<span class="chip">${esc(n)}<button data-remove="${esc(n)}" data-list="${listName}" aria-label="Remove">✕</button></span>`).join("")
+    : `<span class="small muted">None</span>`;
+  el.querySelectorAll("[data-remove]").forEach((b) => b.onclick = () => {
+    if (confirm(`Remove ${b.dataset.remove} from this list?`)) cmd("removeChannel", { name: b.dataset.remove, list: b.dataset.list }, `Removing ${b.dataset.remove}`);
+  });
+}
+function render(d) {
+  const s = d.status;
+  $("online").textContent = d.online ? "● Mac online" : (d.seen ? `Mac offline · ${fmt((Date.now() - d.seen) / 1000)} ago` : "Mac not connected");
+  $("online").classList.toggle("on", !!d.online);
+  $("whoAmI").textContent = `This phone: ${me.name || "Parent"} · Paired: ${(d.phones || []).join(", ")}`;
+  $("waiting").hidden = !!s;
+  ["today", "controls", "channelsCard", "limitsCard"].forEach((id) => $(id).hidden = !s);
+  if (!s) return;
+
+  $("macName").textContent = s.mac || "";
+  const pct = (u, l) => `${Math.min(100, (u / Math.max(l, 1)) * 100)}%`;
+  $("ytText").textContent = `${fmt(s.daily.used)} of ${fmt(s.daily.limit)} · ${fmt(s.daily.limit - s.daily.used)} left`;
+  $("ytBar").style.width = pct(s.daily.used, s.daily.limit);
+  $("funText").textContent = `${fmt(s.fun.used)} of ${fmt(s.fun.limit)}`;
+  $("funBar").style.width = pct(s.fun.used, s.fun.limit);
+  $("sitText").textContent = `This sitting: ${fmt(s.sitting.used)} of ${fmt(s.sitting.limit)}`;
+  $("kidText").textContent = `Kid +10s: ${s.kidExtras.used}/${s.kidExtras.max}`;
+
+  let now;
+  if (!s.enabled) now = `<b>⏻ Tube Timer is off</b><span class="small muted">No limits right now.</span>`;
+  else if (s.lock.locked) now = `<b>🔒 YouTube is paused · ${fmt(s.lock.until - Date.now() / 1000)} left</b><span class="small muted">${esc(s.lock.reason)}</span>`;
+  else if (s.now) now = `<b>${s.watching ? "▶️ Watching" : "⏸ Paused on"}: ${esc(s.now.title)}</b><span class="small muted">${esc(s.now.channel)}</span><span class="tag ${s.now.kind}">${KIND[s.now.kind] || ""}</span>`;
+  else if (s.onYouTube) now = `<b>🔎 Browsing YouTube</b>`;
+  else now = `<b>Not on YouTube right now</b>`;
+  $("nowBox").innerHTML = now;
+
+  $("enabledSwitch").classList.toggle("on", s.enabled);
+  $("enabledSwitch").setAttribute("aria-checked", s.enabled);
+  $("enabledWord").textContent = s.enabled ? "on" : "off";
+
+  const reqs = s.requests || [];
+  $("requestsCard").hidden = !reqs.length;
+  $("reqCount").textContent = reqs.length;
+  $("requests").innerHTML = reqs.map((r) => `<div class="req"><b>${r.kind === "time" ? "⏱ 10 more minutes" : `📺 ${esc(r.channel)}`}</b>
+    <div class="small muted">${r.note ? `“${esc(r.note)}” · ` : ""}${new Date(r.time * 1000).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}</div>
+    <div class="btns"><button class="good small" data-req="${r.id}" data-a="approve">${r.kind === "time" ? "Approve" : "Allow"}</button>
+    ${r.kind === "channel" ? `<button class="small" data-req="${r.id}" data-a="fun">🎉 As fun</button>` : ""}
+    <button class="bad small" data-req="${r.id}" data-a="deny">Deny</button></div></div>`).join("");
+  $("requests").querySelectorAll("[data-req]").forEach((b) => b.onclick = () => {
+    const a = b.dataset.a;
+    cmd(a === "deny" ? "deny" : "approve", { id: b.dataset.req, asFun: a === "fun" }, a === "deny" ? "Denying" : "Approving");
+  });
+
+  chips($("allowChips"), s.channels.allow || [], "allow");
+  chips($("funChips"), s.channels.fun || [], "fun");
+  chips($("blockChips"), s.channels.block || [], "block");
+
+  if (!dirty) {
+    limits = { ...s.limits }; renderSteppers();
+    $("bedStart").value = hhmm(s.bedtime.start); $("bedEnd").value = hhmm(s.bedtime.end);
+  }
+
+  $("blockedCard").hidden = !(s.recent || []).length;
+  $("recent").innerHTML = (s.recent || []).map((r) => `<li>${esc(r)}</li>`).join("");
+
+  for (const r of d.results || []) {
+    if (waitingFor.has(r.id)) { toast(r.message || (r.ok ? "Done ✅" : "Didn't work")); waitingFor.delete(r.id); }
+  }
+}
+
+async function poll() {
+  if (!paired() || document.hidden) return;
+  try { render(await api(`/api/status?hid=${encodeURIComponent(me.hid)}`)); }
+  catch (e) {
+    if (e.status === 403) { try { localStorage.removeItem("tt-pairing"); } catch {} me = {}; showPair(); $("pairMsg").textContent = e.message; }
+    else { $("online").textContent = "No connection"; $("online").classList.remove("on"); }
+  }
+}
+function start(justPaired) {
+  $("pairView").hidden = true; $("mainView").hidden = false;
+  const standalone = navigator.standalone || matchMedia("(display-mode: standalone)").matches;
+  $("installHint").hidden = standalone || !/iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (justPaired) toast(`Paired as ${me.name}! 🎉`);
+  poll(); clearInterval(start.t); start.t = setInterval(poll, 3000);
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
+paired() ? (remember(), start()) : showPair();
+</script>
+</body>
+</html>

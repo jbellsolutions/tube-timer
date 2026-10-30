@@ -69,15 +69,20 @@ extension Limiter {
                               : "Sent! A parent will see your request for \(channel)."
     }
 
-    /// Parent: always allow a channel (and take it off the block list).
+    func removing(_ name: String, from list: String) -> String {
+        list.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && $0.lowercased() != name.lowercased() }.joined(separator: ", ")
+    }
+
+    /// Parent: always allow a channel (and take it off the block and fun lists).
     func allowChannel(_ name: String) {
         let n = name.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { return }
         var names = allowChannels.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         if !names.contains(where: { $0.lowercased() == n.lowercased() }) { names.append(n) }
         allowChannels = names.joined(separator: ", ")
-        blockChannels = blockChannels.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && $0.lowercased() != n.lowercased() }.joined(separator: ", ")
+        blockChannels = removing(n, from: blockChannels)
+        funChannels = removing(n, from: funChannels)          // a channel lives on one list only
         changed()
     }
 
@@ -88,8 +93,8 @@ extension Limiter {
         var names = funChannels.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         if !names.contains(where: { $0.lowercased() == n.lowercased() }) { names.append(n) }
         funChannels = names.joined(separator: ", ")
-        blockChannels = blockChannels.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && $0.lowercased() != n.lowercased() }.joined(separator: ", ")
+        blockChannels = removing(n, from: blockChannels)
+        allowChannels = removing(n, from: allowChannels)      // a channel lives on one list only
         changed()
     }
 
